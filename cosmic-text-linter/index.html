@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <meta name="description" content="Cosmic Text Linter - Remove invisible Unicode artifacts, defend against Unicode attacks, restore human-readable text">
+    <title>Cosmic Text Linter - Deep Space Text Sanitizer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body data-api="api/clean.php">
+    <div class="starfield" aria-hidden="true"></div>
+    <div class="starfield-layer-2" aria-hidden="true"></div>
+    <div class="container">
+        <header class="header">
+            <div class="title-cluster">
+                <h1 class="title">COSMIC TEXT LINTER</h1>
+                <p class="subtitle">Remove the invisible. Restore the human.</p>
+            </div>
+            <div class="copilot-signal" role="note" aria-label="Agent velocity status">
+                <span class="signal-label">COPILOT CHANNEL</span>
+                <span class="signal-value">AGENTS ONLINE · FTL READY</span>
+            </div>
+        </header>
+
+        <nav class="breadcrumbs" aria-label="Navigation trail">
+            <ol>
+                <li><a href="#" class="breadcrumb-link">Home</a></li>
+                <li><span aria-hidden="true">›</span><a href="#" class="breadcrumb-link">Feed</a></li>
+                <li><span aria-hidden="true">›</span><a href="#" class="breadcrumb-link">External Repo</a></li>
+                <li><span aria-hidden="true">›</span><a href="#" class="breadcrumb-link">Fork</a></li>
+                <li><span aria-hidden="true">›</span><span class="breadcrumb-current">Internal Repo</span></li>
+            </ol>
+        </nav>
+        <main class="main-interface">
+            <aside class="panel color-panel" aria-labelledby="color-deck-title">
+                <div class="panel-header compact">
+                    <h2 class="panel-label" id="color-deck-title">COLOR COMMAND</h2>
+                    <span class="panel-sub">Realign the glow</span>
+                </div>
+                <div class="color-wheel-wrap">
+                    <label for="accent-color-picker" class="color-label">Drag the spectrum</label>
+                    <input type="color" id="accent-color-picker" name="accent-color-picker" aria-describedby="accent-color-help" value="#00d9ff">
+                </div>
+                <div class="color-hex-wrap">
+                    <label for="accent-color-hex" class="color-label">Or input a hex code</label>
+                    <div class="hex-input-group">
+                        <span aria-hidden="true">#</span>
+                        <input type="text" id="accent-color-hex" name="accent-color-hex" maxlength="6" placeholder="00d9ff" aria-describedby="accent-color-help">
+                        <button class="btn-tertiary" id="accent-apply" type="button">ENGAGE</button>
+                    </div>
+                </div>
+                <p class="color-help" id="accent-color-help">Your selection rewires every neon edge. Agents respond instantly.</p>
+                <div class="color-preview" aria-hidden="true">
+                    <span class="preview-chip" data-tone="primary"></span>
+                    <span class="preview-chip" data-tone="secondary"></span>
+                    <span class="preview-chip" data-tone="flare"></span>
+                </div>
+                <button class="btn-random" id="accent-random" type="button">RANDOMIZE VIBES</button>
+            </aside>
+
+            <section class="panel input-panel" aria-labelledby="input-label">
+                <div class="panel-header">
+                    <label id="input-label" for="input-text" class="panel-label">RAW INPUT</label>
+                    <span class="char-count" id="input-count">0 chars • 0 bytes</span>
+                </div>
+                <textarea
+                    id="input-text"
+                    class="text-area"
+                    placeholder="Paste your contaminated text here..."
+                    spellcheck="false"
+                    aria-describedby="input-help"
+                    aria-label="Input text to sanitize"
+                ></textarea>
+                <p id="input-help" class="visually-hidden">Paste text to sanitize. Press Control or Command plus Enter to sanitize quickly.</p>
+            </section>
+
+            <section class="control-section" aria-label="Operation controls">
+                <div class="mode-selector">
+                    <span class="mode-label" id="mode-label">OPERATION MODE</span>
+                    <div class="mode-buttons" role="group" aria-labelledby="mode-label">
+                        <button class="mode-btn active" data-mode="safe" aria-pressed="true" type="button">
+                            <span class="mode-name">SAFE</span>
+                            <span class="mode-desc">Preserves emoji & scripts</span>
+                        </button>
+                        <button class="mode-btn" data-mode="aggressive" aria-pressed="false" type="button">
+                            <span class="mode-name">AGGRESSIVE</span>
+                            <span class="mode-desc">Latin-only</span>
+                        </button>
+                        <button class="mode-btn" data-mode="strict" aria-pressed="false" type="button">
+                            <span class="mode-name">STRICT</span>
+                            <span class="mode-desc">Maximum security</span>
+                        </button>
+                    </div>
+                </div>
+                <p class="control-note">Agents adapt faster than memos. Deploy, observe, iterate.</p>
+                <button id="sanitize-btn" class="btn-primary" aria-label="Sanitize text" type="button">
+                    <span class="btn-text">SANITIZE TEXT</span>
+                    <span class="btn-icon" aria-hidden="true">✦</span>
+                </button>
+            </section>
+
+            <section class="panel output-panel" aria-labelledby="output-label">
+                <div class="panel-header">
+                    <label id="output-label" for="output-text" class="panel-label">SANITIZED OUTPUT</label>
+                    <span class="char-count" id="output-count">0 chars • 0 bytes</span>
+                </div>
+                <textarea
+                    id="output-text"
+                    class="text-area"
+                    placeholder="Cleaned text will appear here..."
+                    spellcheck="false"
+                    readonly
+                    aria-label="Sanitized output text"
+                ></textarea>
+                <button id="copy-btn" class="btn-secondary" aria-label="Copy sanitized text" type="button">
+                    COPY TO CLIPBOARD
+                </button>
+            </section>
+        </main>
+        <section class="stats-section" aria-label="Sanitization statistics">
+            <div class="stats-display" id="stats" role="status" aria-live="polite">
+                <div class="stat-item">
+                    <span class="stat-label">SIGNAL STATUS</span>
+                    <span class="stat-value" id="status">AWAITING INPUT</span>
+                </div>
+            </div>
+            <aside class="advisory-panel hidden" id="advisory-panel" role="alert" aria-live="assertive">
+                <div class="advisory-header">
+                    <span class="advisory-icon" aria-hidden="true">⚠️</span>
+                    <span class="advisory-title">SECURITY ADVISORIES DETECTED</span>
+                </div>
+                <div class="advisory-list" id="advisory-list"></div>
+                <button class="advisory-help-btn" id="help-btn" aria-label="Learn about security advisories" type="button">
+                    WHAT DO THESE MEAN?
+                </button>
+            </aside>
+        </section>
+        <footer class="footer">
+            <p class="footer-text">
+                v2.2.1 • Unicode Security Pipeline •
+                <a href="#" id="about-link">About This Tool</a>
+            </p>
+        </footer>
+    </div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <div class="modal hidden" id="help-modal" role="dialog" aria-labelledby="modal-title" aria-describedby="modal-desc" aria-modal="true">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-title">Security Advisories Explained</h2>
+                <button class="modal-close" id="modal-close" aria-label="Close dialog" type="button">&times;</button>
+            </div>
+            <div class="modal-body" id="modal-desc">
+                <div class="help-item">
+                    <h3>BiDi Controls</h3>
+                    <p>Directional formatting characters that can invisibly reorder text. Used in "Trojan Source" attacks to make malicious code appear benign. Your text contained these control characters which have been removed.</p>
+                </div>
+                <div class="help-item">
+                    <h3>Mixed Scripts</h3>
+                    <p>Text mixing multiple writing systems (e.g., Latin + Cyrillic). Often used for phishing by spoofing domains like "аpple.com" (using Cyrillic 'а'). This advisory means your text may contain confusable characters.</p>
+                </div>
+                <div class="help-item">
+                    <h3>Default Ignorables</h3>
+                    <p>Invisible Unicode characters like zero-width spaces, soft hyphens, and format controls. These can hide watermarks, bypass text filters, or carry steganographic data.</p>
+                </div>
+                <div class="help-item">
+                    <h3>TAG Characters</h3>
+                    <p>Special invisible characters (U+E0000-U+E007F) historically used for steganography and prompt injection attacks. Most legitimate use cases (like emoji flags) are preserved in safe mode.</p>
+                </div>
+                <div class="help-item">
+                    <h3>Orphan Combining Marks</h3>
+                    <p>Diacritical marks without base characters, or excessive "Zalgo text" that causes rendering issues. These have been cleaned while preserving legitimate accented characters.</p>
+                </div>
+                <div class="help-item">
+                    <h3>Confusables</h3>
+                    <p>Visually similar characters from different scripts that could be used for spoofing or confusion attacks. The Spoofchecker has flagged your text as potentially suspicious.</p>
+                </div>
+                <div class="help-item">
+                    <h3>Noncharacters</h3>
+                    <p>Unicode code points reserved for internal use (U+FDD0-U+FDEF and U+xxFFFE/U+xxFFFF). These should never appear in interchange text.</p>
+                </div>
+                <div class="help-item">
+                    <h3>Private Use Area</h3>
+                    <p>Characters without standardized meaning (U+E000-U+F8FF and higher planes). In strict mode, these are removed for maximum security.</p>
+                </div>
+                <div class="help-item">
+                    <h3>Non-ASCII Digits</h3>
+                    <p>Digits from non-Latin scripts (Arabic-Indic, Devanagari, etc.) that have been normalized to ASCII 0-9 in aggressive/strict modes.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="assets/js/script.js" defer></script>
+</body>
+</html>
