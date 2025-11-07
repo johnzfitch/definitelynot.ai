@@ -1,5 +1,5 @@
 /**
- * Cosmic Text Linter v2.3.0
+ * Cosmic Text Linter v2.3.1
  * Frontend control deck for the retro space console UI.
  * Handles mode toggles, API calls, counters, modal, and toasts.
  */
@@ -701,7 +701,7 @@ function updateDiffView() {
     diffView.appendChild(content);
 }
 
-console.log('%cCOSMIC TEXT LINTER v2.3.0', 'color:#00d9ff;font-size:20px;font-weight:bold;');
+console.log('%cCOSMIC TEXT LINTER v2.3.1', 'color:#00d9ff;font-size:20px;font-weight:bold;');
 console.log('%cRemove the invisible. Restore the human.', 'color:#8892b0;font-size:12px;');
 
 /**

@@ -3,18 +3,23 @@
 declare(strict_types=1);
 
 /**
- * Cosmic Text Linter core engine v2.3.0
+ * Cosmic Text Linter core engine v2.3.1
  * Implements the Unicode-aware sanitization pipeline with security metrics.
  *
  * Security Update v2.3.0:
- * - Fixed missing 14 Unicode space characters (steganography prevention)
- * - Fixed variation selector logic (proper handling of all 16 selectors)
+ * - Fixed variation selector logic (proper handling of all 16 selectors for AI watermark removal)
+ * - Unicode spaces normalized (not removed) to preserve text structure
  * - Improved code organization and documentation
+ *
+ * Update v2.3.1:
+ * - Preserve markdown formatting in safe mode (*, _, `, etc.)
+ * - Only strip markdown in aggressive/strict modes
+ * - Focus on AI watermark removal (variation selectors, zero-width chars)
  */
 class TextLinter
 {
     public const MAX_INPUT_SIZE = 1048576; // 1 MB
-    public const VERSION = '2.3.0';
+    public const VERSION = '2.3.1';
     private const TRANSLITERATOR_CHUNK_SIZE = 4096; // grapheme batch size for ICU safety
     private const TRANSLITERATOR_MAX_SECONDS = 0.15; // per-request budget
 
@@ -64,7 +69,7 @@ class TextLinter
         $text = self::asciiDigits($text, $stats, $mode);
         $text = self::normalizePunctuation($text);
         $text = self::cleanOrphanCombining($text, $stats);
-        $text = self::stripFormatting($text);
+        $text = self::stripFormatting($text, $mode);
         $text = self::stripNoncharacters($text, $stats, $mode);
         $text = self::stripPrivateUse($text, $stats, $mode);
         $text = self::stripTagBlock($text, $stats, $mode);
@@ -226,42 +231,22 @@ class TextLinter
             $invisibles[] = '\x{061C}'; // Arabic letter mark
         }
 
-        // Variation selectors (U+FE00 to U+FE0F)
+        // Variation selectors (U+FE00 to U+FE0F) - AI watermark removal
+        // These are truly invisible and used for AI watermarking
         // Fixed: Properly handle all 16 variation selectors based on mode
         $vsEnd = ($mode === 'aggressive' || $mode === 'strict') ? 0xFE0F : 0xFE0E;
         for ($i = 0xFE00; $i <= $vsEnd; $i++) {
             $invisibles[] = '\x{' . strtoupper(dechex($i)) . '}';
         }
 
-        // Unicode spaces (security risk: steganography, filter bypass, spoofing)
-        // Fixed: Added 14 missing Unicode space characters
-        if ($mode === 'aggressive' || $mode === 'strict') {
-            $unicodeSpaces = [
-                '\x{1680}', // Ogham space mark
-                '\x{2000}', // En quad
-                '\x{2001}', // Em quad
-                '\x{2002}', // En space
-                '\x{2003}', // Em space
-                '\x{2004}', // Three-per-em space
-                '\x{2005}', // Four-per-em space
-                '\x{2006}', // Six-per-em space
-                '\x{2007}', // Figure space
-                '\x{2008}', // Punctuation space
-                '\x{2009}', // Thin space
-                '\x{200A}', // Hair space
-                '\x{205F}', // Medium mathematical space
-                '\x{3000}', // Ideographic space
-            ];
-            $invisibles = array_merge($invisibles, $unicodeSpaces);
-        }
-
         // Mongolian free variation selectors and variation selector supplements
+        // These are used for AI watermarking and should be removed in aggressive/strict
         if ($mode === 'aggressive' || $mode === 'strict') {
             $invisibles[] = '\x{180B}'; // Mongolian free variation selector one
             $invisibles[] = '\x{180C}'; // Mongolian free variation selector two
             $invisibles[] = '\x{180D}'; // Mongolian free variation selector three
 
-            // Variation Selectors Supplement (U+E0100 to U+E01EF)
+            // Variation Selectors Supplement (U+E0100 to U+E01EF) - AI watermark removal
             for ($i = 0xE0100; $i <= 0xE01EF; $i++) {
                 $invisibles[] = '\x{' . strtoupper(dechex($i)) . '}';
             }
@@ -382,14 +367,22 @@ class TextLinter
         return $text ?? '';
     }
 
-    /** Step 10: Strip markdown/HTML formatting */
-    private static function stripFormatting(string $text): string
+    /** Step 10: Strip markdown/HTML formatting (only in aggressive/strict modes) */
+    private static function stripFormatting(string $text, string $mode): string
     {
+        // Always normalize Unicode bullets to hyphens
         $bullets = ['•', '◦', '▪', '‣', '⁃', '⁌', '⁍', '∙', '○', '●', '◘', '◙'];
         $text = str_replace($bullets, '-', $text);
+
+        // Always strip HTML tags for security
         $text = strip_tags($text);
-        $text = preg_replace('/\*([^*\n]{1,50})\*/u', '$1', $text);
-        $text = preg_replace('/_([^_\n]{1,50})_/u', '$1', $text);
+
+        // Only strip markdown in aggressive/strict modes (preserve for safe mode)
+        if ($mode === 'aggressive' || $mode === 'strict') {
+            $text = preg_replace('/\*([^*\n]{1,50})\*/u', '$1', $text);
+            $text = preg_replace('/_([^_\n]{1,50})_/u', '$1', $text);
+        }
+
         return $text ?? '';
     }
 
