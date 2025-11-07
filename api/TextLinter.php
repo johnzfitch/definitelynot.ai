@@ -3,13 +3,18 @@
 declare(strict_types=1);
 
 /**
- * Cosmic Text Linter core engine v2.2.1
+ * Cosmic Text Linter core engine v2.3.0
  * Implements the Unicode-aware sanitization pipeline with security metrics.
+ *
+ * Security Update v2.3.0:
+ * - Fixed missing 14 Unicode space characters (steganography prevention)
+ * - Fixed variation selector logic (proper handling of all 16 selectors)
+ * - Improved code organization and documentation
  */
 class TextLinter
 {
     public const MAX_INPUT_SIZE = 1048576; // 1 MB
-    public const VERSION = '2.2.1';
+    public const VERSION = '2.3.0';
     private const TRANSLITERATOR_CHUNK_SIZE = 4096; // grapheme batch size for ICU safety
     private const TRANSLITERATOR_MAX_SECONDS = 0.15; // per-request budget
 
@@ -180,15 +185,33 @@ class TextLinter
     /** Step 5: Strip invisible characters with mode awareness */
     private static function stripInvisibles(string $text, array &$stats, string $mode): string
     {
+        // Core invisible characters (zero-width, format controls, soft hyphens)
         $invisibles = [
-            '\x{200B}', '\x{200C}', '\x{200D}',
-            '\x{2028}', '\x{2029}', '\x{2060}',
-            '\x{2061}', '\x{2062}', '\x{2063}', '\x{2064}',
-            '\x{206A}', '\x{206B}', '\x{206C}', '\x{206D}', '\x{206E}', '\x{206F}',
-            '\x{FEFF}', '\x{FFF9}', '\x{FFFA}', '\x{FFFB}',
-            '\x{00AD}', '\x{180E}',
+            '\x{200B}', // Zero-width space
+            '\x{200C}', // Zero-width non-joiner (preserved in safe mode for text shaping)
+            '\x{200D}', // Zero-width joiner (preserved in safe mode for text shaping)
+            '\x{2028}', // Line separator
+            '\x{2029}', // Paragraph separator
+            '\x{2060}', // Word joiner
+            '\x{2061}', // Function application
+            '\x{2062}', // Invisible times
+            '\x{2063}', // Invisible separator
+            '\x{2064}', // Invisible plus
+            '\x{206A}', // Inhibit symmetric swapping
+            '\x{206B}', // Activate symmetric swapping
+            '\x{206C}', // Inhibit Arabic form shaping
+            '\x{206D}', // Activate Arabic form shaping
+            '\x{206E}', // National digit shapes
+            '\x{206F}', // Nominal digit shapes
+            '\x{FEFF}', // Zero-width no-break space (BOM)
+            '\x{FFF9}', // Interlinear annotation anchor
+            '\x{FFFA}', // Interlinear annotation separator
+            '\x{FFFB}', // Interlinear annotation terminator
+            '\x{00AD}', // Soft hyphen
+            '\x{180E}', // Mongolian vowel separator
         ];
 
+        // In safe mode, preserve text-shaping characters for complex scripts
         if ($mode === 'safe') {
             $safeSet = array_flip(['\x{200C}', '\x{200D}']);
             $invisibles = array_values(array_filter($invisibles, function ($item) use ($safeSet) {
@@ -196,21 +219,49 @@ class TextLinter
             }));
         }
 
+        // Directional marks (removed in aggressive/strict modes only)
         if ($mode !== 'safe') {
-            $invisibles[] = '\x{200E}';
-            $invisibles[] = '\x{200F}';
-            $invisibles[] = '\x{061C}';
+            $invisibles[] = '\x{200E}'; // Left-to-right mark
+            $invisibles[] = '\x{200F}'; // Right-to-left mark
+            $invisibles[] = '\x{061C}'; // Arabic letter mark
         }
 
-        for ($i = 0xFE00; $i <= 0xFE0E; $i++) {
+        // Variation selectors (U+FE00 to U+FE0F)
+        // Fixed: Properly handle all 16 variation selectors based on mode
+        $vsEnd = ($mode === 'aggressive' || $mode === 'strict') ? 0xFE0F : 0xFE0E;
+        for ($i = 0xFE00; $i <= $vsEnd; $i++) {
             $invisibles[] = '\x{' . strtoupper(dechex($i)) . '}';
         }
 
-        if ($mode === 'aggressive') {
-            $invisibles[] = '\x{FE0F}';
-            $invisibles[] = '\x{180B}';
-            $invisibles[] = '\x{180C}';
-            $invisibles[] = '\x{180D}';
+        // Unicode spaces (security risk: steganography, filter bypass, spoofing)
+        // Fixed: Added 14 missing Unicode space characters
+        if ($mode === 'aggressive' || $mode === 'strict') {
+            $unicodeSpaces = [
+                '\x{1680}', // Ogham space mark
+                '\x{2000}', // En quad
+                '\x{2001}', // Em quad
+                '\x{2002}', // En space
+                '\x{2003}', // Em space
+                '\x{2004}', // Three-per-em space
+                '\x{2005}', // Four-per-em space
+                '\x{2006}', // Six-per-em space
+                '\x{2007}', // Figure space
+                '\x{2008}', // Punctuation space
+                '\x{2009}', // Thin space
+                '\x{200A}', // Hair space
+                '\x{205F}', // Medium mathematical space
+                '\x{3000}', // Ideographic space
+            ];
+            $invisibles = array_merge($invisibles, $unicodeSpaces);
+        }
+
+        // Mongolian free variation selectors and variation selector supplements
+        if ($mode === 'aggressive' || $mode === 'strict') {
+            $invisibles[] = '\x{180B}'; // Mongolian free variation selector one
+            $invisibles[] = '\x{180C}'; // Mongolian free variation selector two
+            $invisibles[] = '\x{180D}'; // Mongolian free variation selector three
+
+            // Variation Selectors Supplement (U+E0100 to U+E01EF)
             for ($i = 0xE0100; $i <= 0xE01EF; $i++) {
                 $invisibles[] = '\x{' . strtoupper(dechex($i)) . '}';
             }
