@@ -10,6 +10,8 @@ class TextLinter
 {
     public const MAX_INPUT_SIZE = 1048576; // 1 MB
     public const VERSION = '2.2.1';
+    private const TRANSLITERATOR_CHUNK_SIZE = 4096; // grapheme batch size for ICU safety
+    private const TRANSLITERATOR_MAX_SECONDS = 0.15; // per-request budget
 
     /**
      * Execute the sanitization pipeline.
@@ -132,9 +134,37 @@ class TextLinter
         if (class_exists('Transliterator')) {
             $trans = Transliterator::create('NFKC; Lower');
             if ($trans) {
-                $result = $trans->transliterate($text);
-                if ($result !== false) {
-                    return $result;
+                $length = mb_strlen($text, 'UTF-8');
+                $processed = 0;
+                $accumulator = '';
+                $success = true;
+                $start = microtime(true);
+
+                while ($processed < $length) {
+                    if ((microtime(true) - $start) > self::TRANSLITERATOR_MAX_SECONDS) {
+                        $success = false;
+                        self::logSecurityEvent('transliterator_timeout', 'NFKC transliteration exceeded time budget; falling back.');
+                        break;
+                    }
+
+                    $chunk = mb_substr($text, $processed, self::TRANSLITERATOR_CHUNK_SIZE, 'UTF-8');
+                    if ($chunk === '') {
+                        break;
+                    }
+
+                    $converted = $trans->transliterate($chunk);
+                    if ($converted === false) {
+                        $success = false;
+                        self::logSecurityEvent('transliterator_failure', 'NFKC transliteration failed; falling back.');
+                        break;
+                    }
+
+                    $accumulator .= $converted;
+                    $processed += mb_strlen($chunk, 'UTF-8');
+                }
+
+                if ($success) {
+                    return $accumulator;
                 }
             }
         }
@@ -418,6 +448,7 @@ class TextLinter
     private static function spoofAudit(string $text, array &$stats, string $mode): string
     {
         if (!class_exists('Spoofchecker')) {
+            self::logSecurityEvent('spoofchecker_missing', 'Spoofchecker extension unavailable; spoof audit skipped.');
             return $text;
         }
         try {
@@ -548,4 +579,15 @@ class TextLinter
 
         return $previousComplete && $nextStartsSentence;
     }
+
+    private static function logSecurityEvent(string $key, string $message): void
+    {
+        static $logged = [];
+        if (isset($logged[$key])) {
+            return;
+        }
+        $logged[$key] = true;
+        error_log('[CosmicTextLinter] ' . $message);
+    }
+
 }
