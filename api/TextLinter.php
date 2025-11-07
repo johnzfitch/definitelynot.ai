@@ -229,24 +229,34 @@ class TextLinter
         for ($i = 0; $i < $length; $i++) {
             $ch = mb_substr($text, $i, 1, 'UTF-8');
             $digit = null;
+            $shouldNormalize = false;
+            $cp = mb_ord($ch, 'UTF-8');
+            if ($cp === false) {
+                $buffer .= $ch;
+                continue;
+            }
+
             if (class_exists('IntlChar')) {
-                $cp = mb_ord($ch, 'UTF-8');
-                if ($cp !== false) {
-                    $digit = IntlChar::charDigitValue($cp);
-                    if (!is_int($digit) || $digit < 0 || $digit > 9) {
-                        $digit = null;
-                    }
+                $digit = IntlChar::charDigitValue($cp);
+                if (!is_int($digit) || $digit < 0 || $digit > 9) {
+                    $digit = null;
+                } else {
+                    // Only normalize if the original glyph was not ASCII 0-9.
+                    $shouldNormalize = ($cp < 0x30 || $cp > 0x39);
                 }
             }
+
             if ($digit === null) {
-                $cp = mb_ord($ch, 'UTF-8');
                 if ($cp >= 0x0660 && $cp <= 0x0669) {
                     $digit = $cp - 0x0660;
+                    $shouldNormalize = true;
                 } elseif ($cp >= 0x06F0 && $cp <= 0x06F9) {
                     $digit = $cp - 0x06F0;
+                    $shouldNormalize = true;
                 }
             }
-            if ($digit !== null && $digit >= 0 && $digit <= 9) {
+
+            if ($digit !== null && $digit >= 0 && $digit <= 9 && $shouldNormalize) {
                 $buffer .= (string) $digit;
                 $normalized++;
             } else {
