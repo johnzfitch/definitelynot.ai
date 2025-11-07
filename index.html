@@ -28,38 +28,21 @@
         <nav class="breadcrumbs" aria-label="Navigation trail">
             <ol>
                 <li><a href="#" class="breadcrumb-link">Home</a></li>
-                <li><span aria-hidden="true">›</span><a href="#" class="breadcrumb-link">Feed</a></li>
-                <li><span aria-hidden="true">›</span><a href="#" class="breadcrumb-link">External Repo</a></li>
+                <li><span aria-hidden="true">›</span><a href="https://feed.internetuniverse.org" class="breadcrumb-link">Feed</a></li>
+                <li><span aria-hidden="true">›</span><a href="https://showtime.internetuniverse.org" class="breadcrumb-link">Share the Universe</a></li>
                 <li><span aria-hidden="true">›</span><a href="#" class="breadcrumb-link">Fork</a></li>
-                <li><span aria-hidden="true">›</span><span class="breadcrumb-current">Internal Repo</span></li>
+                <li><span aria-hidden="true">›</span><a href="https://github.com/johnzfitch" class="breadcrumb-current">Internal Repo</a></li>
             </ol>
         </nav>
+
+        <div class="color-trigger-container">
+            <button class="color-trigger-btn" id="color-trigger" type="button" aria-label="Open color customizer">
+                <span class="color-trigger-icon">🎨</span>
+                <span class="color-trigger-text">CUSTOMIZE COLORS</span>
+            </button>
+        </div>
+
         <main class="main-interface">
-            <aside class="panel color-panel" aria-labelledby="color-deck-title">
-                <div class="panel-header compact">
-                    <h2 class="panel-label" id="color-deck-title">COLOR COMMAND</h2>
-                    <span class="panel-sub">Realign the glow</span>
-                </div>
-                <div class="color-wheel-wrap">
-                    <label for="accent-color-picker" class="color-label">Drag the spectrum</label>
-                    <input type="color" id="accent-color-picker" name="accent-color-picker" aria-describedby="accent-color-help" value="#00d9ff">
-                </div>
-                <div class="color-hex-wrap">
-                    <label for="accent-color-hex" class="color-label">Or input a hex code</label>
-                    <div class="hex-input-group">
-                        <span aria-hidden="true">#</span>
-                        <input type="text" id="accent-color-hex" name="accent-color-hex" maxlength="6" placeholder="00d9ff" aria-describedby="accent-color-help">
-                        <button class="btn-tertiary" id="accent-apply" type="button">ENGAGE</button>
-                    </div>
-                </div>
-                <p class="color-help" id="accent-color-help">Your selection rewires every neon edge. Agents respond instantly.</p>
-                <div class="color-preview" aria-hidden="true">
-                    <span class="preview-chip" data-tone="primary"></span>
-                    <span class="preview-chip" data-tone="secondary"></span>
-                    <span class="preview-chip" data-tone="flare"></span>
-                </div>
-                <button class="btn-random" id="accent-random" type="button">RANDOMIZE VIBES</button>
-            </aside>
 
             <section class="panel input-panel" aria-labelledby="input-label">
                 <div class="panel-header">
@@ -107,14 +90,21 @@
                     <label id="output-label" for="output-text" class="panel-label">SANITIZED OUTPUT</label>
                     <span class="char-count" id="output-count">0 chars • 0 bytes</span>
                 </div>
-                <textarea
-                    id="output-text"
-                    class="text-area"
-                    placeholder="Cleaned text will appear here..."
-                    spellcheck="false"
-                    readonly
-                    aria-label="Sanitized output text"
-                ></textarea>
+                <div class="output-mode-toggle">
+                    <button class="output-mode-btn active" data-output-mode="clean" aria-pressed="true" type="button">CLEAN</button>
+                    <button class="output-mode-btn" data-output-mode="diff" aria-pressed="false" type="button">DIFF</button>
+                </div>
+                <div id="output-container" class="output-container">
+                    <textarea
+                        id="output-text"
+                        class="text-area"
+                        placeholder="Cleaned text will appear here..."
+                        spellcheck="false"
+                        readonly
+                        aria-label="Sanitized output text"
+                    ></textarea>
+                    <div id="diff-view" class="diff-view hidden" aria-label="Diff view showing changes"></div>
+                </div>
                 <button id="copy-btn" class="btn-secondary" aria-label="Copy sanitized text" type="button">
                     COPY TO CLIPBOARD
                 </button>
@@ -146,6 +136,37 @@
         </footer>
     </div>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <div class="modal hidden" id="color-modal" role="dialog" aria-labelledby="color-modal-title" aria-modal="true">
+        <div class="modal-content color-modal-content">
+            <div class="modal-header">
+                <h2 id="color-modal-title">Color Command Deck</h2>
+                <button class="modal-close" id="color-modal-close" aria-label="Close dialog" type="button">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="color-wheel-wrap">
+                    <label for="accent-color-picker" class="color-label">Drag the spectrum</label>
+                    <input type="color" id="accent-color-picker" name="accent-color-picker" aria-describedby="accent-color-help" value="#00d9ff">
+                </div>
+                <div class="color-hex-wrap">
+                    <label for="accent-color-hex" class="color-label">Or input a hex code</label>
+                    <div class="hex-input-group">
+                        <span aria-hidden="true">#</span>
+                        <input type="text" id="accent-color-hex" name="accent-color-hex" maxlength="6" placeholder="00d9ff" aria-describedby="accent-color-help">
+                        <button class="btn-tertiary" id="accent-apply" type="button">ENGAGE</button>
+                    </div>
+                </div>
+                <p class="color-help" id="accent-color-help">Your selection rewires every neon edge. Agents respond instantly.</p>
+                <div class="color-preview" aria-hidden="true">
+                    <span class="preview-chip" data-tone="primary"></span>
+                    <span class="preview-chip" data-tone="secondary"></span>
+                    <span class="preview-chip" data-tone="flare"></span>
+                </div>
+                <button class="btn-random" id="accent-random" type="button">RANDOMIZE VIBES</button>
+            </div>
+        </div>
+    </div>
+
     <div class="modal hidden" id="help-modal" role="dialog" aria-labelledby="modal-title" aria-describedby="modal-desc" aria-modal="true">
         <div class="modal-content">
             <div class="modal-header">

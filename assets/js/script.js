@@ -18,6 +18,9 @@ const helpBtn = document.getElementById('help-btn');
 const helpModal = document.getElementById('help-modal');
 const modalClose = document.getElementById('modal-close');
 const aboutLink = document.getElementById('about-link');
+const colorTrigger = document.getElementById('color-trigger');
+const colorModal = document.getElementById('color-modal');
+const colorModalClose = document.getElementById('color-modal-close');
 const modeButtons = document.querySelectorAll('.mode-btn');
 const accentColorPicker = document.getElementById('accent-color-picker');
 const accentColorHex = document.getElementById('accent-color-hex');
@@ -26,11 +29,16 @@ const accentRandom = document.getElementById('accent-random');
 const appContainer = document.querySelector('.container');
 const API_URL = document.body.dataset.api || 'api/clean.php';
 const rootStyle = document.documentElement.style;
+const outputModeBtns = document.querySelectorAll('.output-mode-btn');
+const diffView = document.getElementById('diff-view');
 
 let isProcessing = false;
 let selectedMode = 'safe';
 let lastFocused = null;
 let toastTimeout;
+let outputMode = 'clean';
+let lastInputText = '';
+let lastOutputText = '';
 
 function charCount(str) {
     if (typeof Intl !== 'undefined' && Intl.Segmenter) {
@@ -114,8 +122,13 @@ sanitizeBtn.addEventListener('click', async () => {
         const result = await response.json();
         outputText.value = result.text;
         outputCount.textContent = formatCounts(result.text || '');
+        lastInputText = text;
+        lastOutputText = result.text;
         displayStats(result.stats);
         displayAdvisories(result.stats?.advisories || {});
+        if (outputMode === 'diff') {
+            updateDiffView();
+        }
         showToast('TRANSMISSION CLEAN');
     } catch (error) {
         console.error('Sanitization failed:', error);
@@ -345,8 +358,92 @@ helpModal.addEventListener('click', event => {
 });
 
 document.addEventListener('keydown', event => {
-    if (event.key === 'Escape' && !helpModal.classList.contains('hidden')) {
-        teardownModalA11y();
+    if (event.key === 'Escape') {
+        if (!helpModal.classList.contains('hidden')) {
+            teardownModalA11y();
+        } else if (!colorModal.classList.contains('hidden')) {
+            teardownColorModal();
+        }
+    }
+});
+
+/**
+ * Color modal management
+ */
+function setupColorModal() {
+    if (colorModal.classList.contains('hidden')) {
+        colorModal.classList.remove('hidden');
+    }
+    lastFocused = document.activeElement;
+    document.body.classList.add('modal-open');
+    if (appContainer) {
+        appContainer.setAttribute('aria-hidden', 'true');
+        try {
+            appContainer.inert = true;
+        } catch (error) {
+            console.debug('inert unsupported', error);
+        }
+    }
+
+    const focusables = colorModal.querySelectorAll(
+        'button, [href], input, textarea, select, details,[tabindex]:not([tabindex="-1"])'
+    );
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+
+    const trap = event => {
+        if (event.key !== 'Tab') return;
+        if (event.shiftKey) {
+            if (document.activeElement === first) {
+                event.preventDefault();
+                last.focus();
+            }
+        } else if (document.activeElement === last) {
+            event.preventDefault();
+            first.focus();
+        }
+    };
+
+    colorModal.addEventListener('keydown', trap);
+    colorModal.dataset.trap = 'true';
+    colorModal._trapHandler = trap;
+
+    if (first) {
+        first.focus();
+    }
+}
+
+function teardownColorModal() {
+    document.body.classList.remove('modal-open');
+    if (appContainer) {
+        appContainer.removeAttribute('aria-hidden');
+        try {
+            appContainer.inert = false;
+        } catch (error) {
+            console.debug('inert unsupported', error);
+        }
+    }
+    if (colorModal._trapHandler) {
+        colorModal.removeEventListener('keydown', colorModal._trapHandler);
+        delete colorModal._trapHandler;
+    }
+    colorModal.classList.add('hidden');
+    if (lastFocused && typeof lastFocused.focus === 'function') {
+        lastFocused.focus();
+    }
+}
+
+colorTrigger.addEventListener('click', () => {
+    setupColorModal();
+});
+
+colorModalClose.addEventListener('click', () => {
+    teardownColorModal();
+});
+
+colorModal.addEventListener('click', event => {
+    if (event.target === colorModal) {
+        teardownColorModal();
     }
 });
 
@@ -363,6 +460,137 @@ outputText.addEventListener('input', () => {
 
 inputCount.textContent = formatCounts('');
 outputCount.textContent = formatCounts('');
+
+/**
+ * Output mode toggle (Clean vs Diff)
+ */
+outputModeBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+        outputModeBtns.forEach(b => {
+            b.classList.remove('active');
+            b.setAttribute('aria-pressed', 'false');
+        });
+        btn.classList.add('active');
+        btn.setAttribute('aria-pressed', 'true');
+        outputMode = btn.dataset.outputMode;
+
+        if (outputMode === 'diff') {
+            outputText.classList.add('hidden');
+            diffView.classList.remove('hidden');
+            updateDiffView();
+        } else {
+            outputText.classList.remove('hidden');
+            diffView.classList.add('hidden');
+        }
+    });
+});
+
+/**
+ * Diff view implementation using safe DOM methods
+ */
+function computeDiff(original, modified) {
+    const diff = [];
+    let i = 0;
+    let j = 0;
+
+    while (i < original.length || j < modified.length) {
+        if (i < original.length && j < modified.length && original[i] === modified[j]) {
+            diff.push({ type: 'unchanged', char: original[i] });
+            i++;
+            j++;
+        } else if (i < original.length && (j >= modified.length || original[i] !== modified[j])) {
+            diff.push({ type: 'removed', char: original[i] });
+            i++;
+        } else if (j < modified.length) {
+            j++;
+        }
+    }
+
+    return diff;
+}
+
+function updateDiffView() {
+    while (diffView.firstChild) {
+        diffView.removeChild(diffView.firstChild);
+    }
+
+    if (!lastInputText || !lastOutputText) {
+        const placeholder = document.createElement('div');
+        placeholder.className = 'diff-placeholder';
+        placeholder.textContent = 'Process text to see diff';
+        diffView.appendChild(placeholder);
+        return;
+    }
+
+    const diff = computeDiff(lastInputText, lastOutputText);
+    let removedCount = 0;
+
+    diff.forEach(item => {
+        if (item.type === 'removed') {
+            removedCount++;
+        }
+    });
+
+    const legend = document.createElement('div');
+    legend.className = 'diff-legend';
+
+    const removedItem = document.createElement('span');
+    removedItem.className = 'diff-legend-item';
+    const removedColor = document.createElement('span');
+    removedColor.className = 'diff-legend-color diff-legend-removed';
+    const removedLabel = document.createElement('span');
+    removedLabel.className = 'diff-legend-label';
+    removedLabel.textContent = `Removed (${removedCount})`;
+    removedItem.appendChild(removedColor);
+    removedItem.appendChild(removedLabel);
+
+    const unchangedItem = document.createElement('span');
+    unchangedItem.className = 'diff-legend-item';
+    const unchangedColor = document.createElement('span');
+    unchangedColor.className = 'diff-legend-color diff-legend-unchanged';
+    const unchangedLabel = document.createElement('span');
+    unchangedLabel.className = 'diff-legend-label';
+    unchangedLabel.textContent = 'Unchanged';
+    unchangedItem.appendChild(unchangedColor);
+    unchangedItem.appendChild(unchangedLabel);
+
+    legend.appendChild(removedItem);
+    legend.appendChild(unchangedItem);
+
+    const content = document.createElement('div');
+    content.className = 'diff-content';
+
+    diff.forEach(item => {
+        const span = document.createElement('span');
+
+        if (item.char === '\n') {
+            const marker = document.createElement('span');
+            marker.className = 'newline-marker';
+            marker.textContent = '↵';
+            span.appendChild(marker);
+            span.appendChild(document.createTextNode('\n'));
+        } else if (item.char === ' ') {
+            const marker = document.createElement('span');
+            marker.className = 'space-marker';
+            marker.textContent = '·';
+            span.appendChild(marker);
+        } else {
+            span.textContent = item.char;
+        }
+
+        if (item.type === 'removed') {
+            span.className = 'diff-removed';
+            span.title = 'Removed';
+        } else {
+            span.className = 'diff-unchanged';
+        }
+
+        content.appendChild(span);
+    });
+
+    diffView.appendChild(legend);
+    diffView.appendChild(content);
+}
 
 console.log('%cCOSMIC TEXT LINTER v2.2.1', 'color:#00d9ff;font-size:20px;font-weight:bold;');
 console.log('%cRemove the invisible. Restore the human.', 'color:#8892b0;font-size:12px;');

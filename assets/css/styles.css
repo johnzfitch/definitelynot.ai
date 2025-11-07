@@ -244,23 +244,53 @@ body {
     color: var(--color-white);
 }
 
+.color-trigger-container {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 1rem;
+}
+
+.color-trigger-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1.2rem;
+    background: rgba(27, 31, 66, 0.8);
+    border: 1px solid rgba(0, 217, 255, 0.4);
+    border-radius: 6px;
+    color: var(--color-accent);
+    font-family: var(--font-display);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.color-trigger-btn:hover {
+    background: rgba(0, 217, 255, 0.15);
+    border-color: var(--color-accent);
+    box-shadow: 0 0 15px rgba(0, 217, 255, 0.3);
+    transform: translateY(-2px);
+}
+
+.color-trigger-icon {
+    font-size: 1.2rem;
+}
+
 .main-interface {
     display: grid;
-    grid-template-columns: minmax(190px, 230px) minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     grid-template-areas:
-        "color input output"
-        "color control output";
+        "input output"
+        "control output";
     gap: var(--layout-gap);
     align-items: stretch;
     margin-bottom: 1.75rem;
 }
 
-.color-panel {
-    grid-area: color;
-    display: flex;
-    flex-direction: column;
-    gap: 0.85rem;
-    min-height: 100%;
+.color-modal-content {
+    max-width: 400px;
 }
 
 .color-wheel-wrap,
@@ -268,6 +298,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: 0.35rem;
+    margin-bottom: 1rem;
 }
 
 #accent-color-picker {
@@ -1072,6 +1103,131 @@ body.modal-open {
         outline: 3px solid var(--color-cyan);
         outline-offset: 2px;
     }
+}
+
+/* Diff View Styles */
+.output-mode-toggle {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.output-mode-btn {
+    flex: 1;
+    padding: 0.5rem;
+    background: rgba(27, 31, 66, 0.7);
+    border: 1px solid rgba(0, 217, 255, 0.3);
+    color: var(--color-gray-blue);
+    font-family: var(--font-display);
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-radius: 4px;
+}
+
+.output-mode-btn:hover {
+    border-color: var(--color-accent);
+    background: rgba(0, 217, 255, 0.1);
+}
+
+.output-mode-btn.active {
+    background: rgba(0, 217, 255, 0.2);
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+    box-shadow: 0 0 10px rgba(0, 217, 255, 0.3);
+}
+
+.output-container {
+    position: relative;
+    min-height: 200px;
+}
+
+.diff-view {
+    width: 100%;
+    min-height: 200px;
+    padding: 1rem;
+    background: rgba(4, 7, 29, 0.5);
+    border: 1px solid rgba(140, 165, 255, 0.2);
+    border-radius: 6px;
+    font-family: var(--font-mono);
+    font-size: 0.9rem;
+    line-height: 1.6;
+    color: var(--color-light-cyan);
+    overflow-y: auto;
+    max-height: 400px;
+}
+
+.diff-view.hidden {
+    display: none;
+}
+
+.diff-legend {
+    display: flex;
+    gap: 1.5rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid rgba(140, 165, 255, 0.2);
+}
+
+.diff-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--color-gray-blue);
+}
+
+.diff-legend-color {
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.diff-legend-removed {
+    background: rgba(255, 51, 102, 0.3);
+    border-color: var(--color-red);
+}
+
+.diff-legend-unchanged {
+    background: rgba(57, 255, 20, 0.15);
+    border-color: rgba(57, 255, 20, 0.5);
+}
+
+.diff-content {
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.diff-removed {
+    background: rgba(255, 51, 102, 0.25);
+    color: #ffb3c6;
+    text-decoration: line-through;
+    padding: 0 2px;
+    border-radius: 2px;
+}
+
+.diff-unchanged {
+    color: var(--color-light-cyan);
+}
+
+.newline-marker {
+    color: var(--color-accent);
+    opacity: 0.5;
+    font-size: 0.8em;
+}
+
+.space-marker {
+    color: var(--color-accent);
+    opacity: 0.3;
+}
+
+.diff-placeholder {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--color-gray-blue);
+    font-style: italic;
 }
 
 @media print {
