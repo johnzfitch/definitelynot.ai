@@ -1,0 +1,46 @@
+# Cosmic Text Linter - Apache Configuration
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^api/?$ api/clean.php [L,QSA]
+    RewriteRule ^api/(.*)$ api/clean.php [L,QSA]
+</IfModule>
+
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set X-XSS-Protection "1; mode=block"
+    Header always set Access-Control-Allow-Origin "*"
+    Header always set Access-Control-Allow-Methods "POST, OPTIONS"
+    Header always set Access-Control-Allow-Headers "Content-Type"
+    Header always set Access-Control-Max-Age "600"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+<IfModule mod_php7.c>
+    php_value upload_max_filesize 2M
+    php_value post_max_size 2M
+    php_value memory_limit 128M
+    php_value max_execution_time 30
+</IfModule>
+
+<FilesMatch "\.(md|txt|log)$">
+    Require all denied
+</FilesMatch>
+
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/css text/javascript application/javascript application/json
+</IfModule>
+
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/css "access plus 1 month"
+    ExpiresByType text/javascript "access plus 1 month"
+    ExpiresByType application/javascript "access plus 1 month"
+    ExpiresByType image/png "access plus 1 year"
+    ExpiresByType image/jpeg "access plus 1 year"
+    ExpiresByType image/svg+xml "access plus 1 year"
+</IfModule>

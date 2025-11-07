@@ -1,0 +1,112 @@
+# Quick instructions: Ungoogled Chromium + Browserless for ChangeDetection
+
+Short, practical steps to build, run, and tune an ungoogled Chromium binary inside a Browserless container. Includes minimal Docker snippets, recommended launch flags, and concise tips for performance, anti-detection, and safety.
+
+## 1) Prerequisites
+
+* Docker and docker-compose installed.
+* Basic familiarity with Playwright/Puppeteer or ChangeDetection settings.
+* Local storage for persistent profiles and ChangeDetection data.
+
+## 2) Build a small Browserless image that contains ungoogled Chromium
+
+Create a Dockerfile that copies a prebuilt ungoogled-chromium binary into the Browserless base.
+
+```dockerfile
+# Dockerfile
+FROM registry.example/ungoogled-chromium:latest as uc
+# uc should provide /usr/bin/chromium or similar
+
+FROM ghcr.io/browserless/chrome:latest
+COPY --from=uc /usr/bin/chromium /usr/local/bin/ungoogled-chromium
+# optional: copy fonts and libs if the uc image has them
+COPY --from=uc /usr/share/fonts /usr/share/fonts || true
+```
+
+Build:
+
+```bash
+docker build -t browserless-ungoogled:latest .
+```
+
+## 3) docker-compose for ChangeDetection + Browserless
+
+Minimal compose. Adjust paths and resource limits to your environment.
+
+```yaml
+version: "3.8"
+services:
+  changedetection:
+    image: dgtlmoon/changedetection.io:latest
+    restart: unless-stopped
+    ports: ["5000:5000"]
+    environment:
+      - PLAYWRIGHT_DRIVER_URL=ws://browserless:3000/chrome?launch={"executablePath":"/usr/local/bin/ungoogled-chromium","headless":false,"args":["--no-first-run","--no-default-browser-check","--disable-background-networking","--disable-features=TranslateUI","--user-data-dir=/profiles/default"],"defaultViewport":{"width":1366,"height":768}}&stealth=true&blockAds=true
+    volumes:
+      - cdio-data:/datastore
+    depends_on:
+      - browserless
+
+  browserless:
+    image: browserless-ungoogled:latest
+    shm_size: "2g"
+    restart: unless-stopped
+    environment:
+      - PREBOOT_CHROME=true
+      - MAX_CONCURRENT_SESSIONS=2
+      - CONNECTION_TIMEOUT=90000
+    ports:
+      - "3000:3000"
+    volumes:
+      - chrome-profiles:/profiles
+
+volumes:
+  cdio-data:
+  chrome-profiles:
+```
+
+Note: change `headless` to `true` for resource savings, but headful often improves compatibility and timing.
+
+## 4) Performance tweaks
+
+* Set `shm_size: "2g"` to prevent Chrome crashes.
+* Use `PREBOOT_CHROME=true` to reduce cold-start latency.
+* Limit concurrent sessions to match the host CPU and memory.
+* Mount a persistent profile into `/profiles` so page loads reuse cache and cookies.
+* Disable unnecessary features: `--disable-background-networking`, `--disable-sync`, `--disable-crash-reporter`.
+* Block large resources if not needed: use Playwright route interception to skip images/fonts or set ChangeDetection fetcher options like blockAds.
+
+## 5) Anti-detection tweaks
+
+* Run headful if possible. Many fingerprint checks target headless.
+* Persist a real profile with bookmarks, fonts, and realistic localStorage/cookies.
+* Align locale, timezone, and accept-language with your egress IP. Set OS TZ inside the container or pass environment variables.
+* Use `--disable-blink-features=AutomationControlled` and avoid raw headless flags.
+* Randomize timing: add jitter and backoff between repeated scans. Do not fetch on a strict rigid interval.
+* Rotate user agents occasionally within plausible versions for your Chromium build. Do not spoof wildly inconsistent UA strings.
+* Keep viewport and device metrics realistic. Use 1366x768 or 1920x1080 rather than tiny or unusual sizes.
+* Add small mouse move and typing delays if using scripted interactions. For ChangeDetection only fetches, rely on page rendering and minimal simulated events.
+* Avoid excessive parallelism from one IP. Use multiple egress IPs or residential proxies if you face data center blocklisting.
+
+## 6) Fingerprint and compatibility caveats
+
+* Ungoogled builds remove Google services and some branding. Some sites use brand checks or Widevine DRM and may refuse or degrade. If a site fails, test with a stock Chrome binary.
+* Some advanced bot detectors analyze fonts, audio, or GPU fingerprints. Adding common system fonts and enabling GPU acceleration where safe improves parity.
+
+## 7) Safety and legal notes
+
+* Use these techniques for legitimate monitoring, testing, or RPA tasks only. Do not use to evade protections or commit scraping that violates site terms or law.
+* Limit stored credentials. If you store logins in the profile volume, protect that volume with file-system permissions and backups.
+* Monitor logs and usage. Add rate limiting and alerting to avoid accidental DOS against target sites.
+
+## 8) Healthchecks and validation
+
+* Add a container healthcheck that opens a simple page and returns HTTP 200 if Chrome responds. Example for Browserless healthcheck using the status endpoint.
+* Periodically compare screenshots from the sidecar to expected renders to detect rendering regressions.
+* Keep an update plan for the ungoogled build. Rebuild and test before replacing in production.
+
+## 9) Quick troubleshooting
+
+* If pages fail to render, test the binary by running it locally with the same user-data-dir.
+* If ChangeDetection shows visual selector unavailable, verify the WS endpoint and that Browserless is reachable from the ChangeDetection container.
+* If you see crashes, increase shm_size or check missing libraries in the custom image.
