@@ -39,6 +39,7 @@ let toastTimeout;
 let outputMode = 'clean';
 let lastInputText = '';
 let lastOutputText = '';
+let comparisonMode = 'char'; // 'char' or 'word'
 
 function charCount(str) {
     if (typeof Intl !== 'undefined' && Intl.Segmenter) {
@@ -486,23 +487,90 @@ outputModeBtns.forEach(btn => {
 });
 
 /**
- * Diff view implementation using safe DOM methods
+ * Improved diff algorithm that shows both additions and removals
+ * Supports both character-level and word-level comparison
  */
-function computeDiff(original, modified) {
-    const diff = [];
-    let i = 0;
-    let j = 0;
+function computeDiff(original, modified, mode = 'char') {
+    if (mode === 'word') {
+        return computeWordDiff(original, modified);
+    }
+    return computeCharDiff(original, modified);
+}
 
-    while (i < original.length || j < modified.length) {
-        if (i < original.length && j < modified.length && original[i] === modified[j]) {
-            diff.push({ type: 'unchanged', char: original[i] });
-            i++;
-            j++;
-        } else if (i < original.length && (j >= modified.length || original[i] !== modified[j])) {
-            diff.push({ type: 'removed', char: original[i] });
-            i++;
-        } else if (j < modified.length) {
-            j++;
+function computeCharDiff(original, modified) {
+    const diff = [];
+    const dp = [];
+
+    // Build LCS table
+    for (let i = 0; i <= original.length; i++) {
+        dp[i] = [];
+        for (let j = 0; j <= modified.length; j++) {
+            if (i === 0 || j === 0) {
+                dp[i][j] = 0;
+            } else if (original[i - 1] === modified[j - 1]) {
+                dp[i][j] = dp[i - 1][j - 1] + 1;
+            } else {
+                dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+            }
+        }
+    }
+
+    // Backtrack to build diff
+    let i = original.length;
+    let j = modified.length;
+
+    while (i > 0 || j > 0) {
+        if (i > 0 && j > 0 && original[i - 1] === modified[j - 1]) {
+            diff.unshift({ type: 'unchanged', char: original[i - 1] });
+            i--;
+            j--;
+        } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+            diff.unshift({ type: 'added', char: modified[j - 1] });
+            j--;
+        } else if (i > 0) {
+            diff.unshift({ type: 'removed', char: original[i - 1] });
+            i--;
+        }
+    }
+
+    return diff;
+}
+
+function computeWordDiff(original, modified) {
+    const originalWords = original.split(/(\s+)/);
+    const modifiedWords = modified.split(/(\s+)/);
+    const diff = [];
+    const dp = [];
+
+    // Build LCS table for words
+    for (let i = 0; i <= originalWords.length; i++) {
+        dp[i] = [];
+        for (let j = 0; j <= modifiedWords.length; j++) {
+            if (i === 0 || j === 0) {
+                dp[i][j] = 0;
+            } else if (originalWords[i - 1] === modifiedWords[j - 1]) {
+                dp[i][j] = dp[i - 1][j - 1] + 1;
+            } else {
+                dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+            }
+        }
+    }
+
+    // Backtrack
+    let i = originalWords.length;
+    let j = modifiedWords.length;
+
+    while (i > 0 || j > 0) {
+        if (i > 0 && j > 0 && originalWords[i - 1] === modifiedWords[j - 1]) {
+            diff.unshift({ type: 'unchanged', word: originalWords[i - 1] });
+            i--;
+            j--;
+        } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+            diff.unshift({ type: 'added', word: modifiedWords[j - 1] });
+            j--;
+        } else if (i > 0) {
+            diff.unshift({ type: 'removed', word: originalWords[i - 1] });
+            i--;
         }
     }
 
@@ -522,18 +590,49 @@ function updateDiffView() {
         return;
     }
 
-    const diff = computeDiff(lastInputText, lastOutputText);
+    const diff = computeDiff(lastInputText, lastOutputText, comparisonMode);
     let removedCount = 0;
+    let addedCount = 0;
 
     diff.forEach(item => {
-        if (item.type === 'removed') {
-            removedCount++;
-        }
+        if (item.type === 'removed') removedCount++;
+        if (item.type === 'added') addedCount++;
     });
 
+    // Comparison mode toggle
+    const modeToggle = document.createElement('div');
+    modeToggle.className = 'diff-mode-toggle';
+
+    const modeLabel = document.createElement('span');
+    modeLabel.className = 'diff-mode-label';
+    modeLabel.textContent = 'Compare by:';
+    modeToggle.appendChild(modeLabel);
+
+    const charBtn = document.createElement('button');
+    charBtn.className = `diff-mode-btn ${comparisonMode === 'char' ? 'active' : ''}`;
+    charBtn.dataset.diffMode = 'char';
+    charBtn.textContent = 'char';
+    charBtn.addEventListener('click', () => {
+        comparisonMode = 'char';
+        updateDiffView();
+    });
+    modeToggle.appendChild(charBtn);
+
+    const wordBtn = document.createElement('button');
+    wordBtn.className = `diff-mode-btn ${comparisonMode === 'word' ? 'active' : ''}`;
+    wordBtn.dataset.diffMode = 'word';
+    wordBtn.textContent = 'word';
+    wordBtn.addEventListener('click', () => {
+        comparisonMode = 'word';
+        updateDiffView();
+    });
+    modeToggle.appendChild(wordBtn);
+
+    // Legend
     const legend = document.createElement('div');
     legend.className = 'diff-legend';
 
+    // Removed item
     const removedItem = document.createElement('span');
     removedItem.className = 'diff-legend-item';
     const removedColor = document.createElement('span');
@@ -543,7 +642,21 @@ function updateDiffView() {
     removedLabel.textContent = `Removed (${removedCount})`;
     removedItem.appendChild(removedColor);
     removedItem.appendChild(removedLabel);
+    legend.appendChild(removedItem);
 
+    // Added item
+    const addedItem = document.createElement('span');
+    addedItem.className = 'diff-legend-item';
+    const addedColor = document.createElement('span');
+    addedColor.className = 'diff-legend-color diff-legend-added';
+    const addedLabel = document.createElement('span');
+    addedLabel.className = 'diff-legend-label';
+    addedLabel.textContent = `Added (${addedCount})`;
+    addedItem.appendChild(addedColor);
+    addedItem.appendChild(addedLabel);
+    legend.appendChild(addedItem);
+
+    // Unchanged item
     const unchangedItem = document.createElement('span');
     unchangedItem.className = 'diff-legend-item';
     const unchangedColor = document.createElement('span');
@@ -553,8 +666,6 @@ function updateDiffView() {
     unchangedLabel.textContent = 'Unchanged';
     unchangedItem.appendChild(unchangedColor);
     unchangedItem.appendChild(unchangedLabel);
-
-    legend.appendChild(removedItem);
     legend.appendChild(unchangedItem);
 
     const content = document.createElement('div');
@@ -562,32 +673,30 @@ function updateDiffView() {
 
     diff.forEach(item => {
         const span = document.createElement('span');
+        const text = item.char || item.word || '';
 
-        if (item.char === '\n') {
+        if (text === '\n') {
             const marker = document.createElement('span');
             marker.className = 'newline-marker';
             marker.textContent = '↵';
             span.appendChild(marker);
             span.appendChild(document.createTextNode('\n'));
-        } else if (item.char === ' ') {
+        } else if (text === ' ') {
             const marker = document.createElement('span');
             marker.className = 'space-marker';
             marker.textContent = '·';
             span.appendChild(marker);
         } else {
-            span.textContent = item.char;
+            span.textContent = text;
         }
 
-        if (item.type === 'removed') {
-            span.className = 'diff-removed';
-            span.title = 'Removed';
-        } else {
-            span.className = 'diff-unchanged';
-        }
+        span.className = `diff-${item.type}`;
+        span.title = item.type.charAt(0).toUpperCase() + item.type.slice(1);
 
         content.appendChild(span);
     });
 
+    diffView.appendChild(modeToggle);
     diffView.appendChild(legend);
     diffView.appendChild(content);
 }
