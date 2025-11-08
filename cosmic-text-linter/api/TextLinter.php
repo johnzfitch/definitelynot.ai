@@ -3,20 +3,101 @@
 declare(strict_types=1);
 
 /**
- * Cosmic Text Linter core engine v2.2.1
- * Implements the Unicode-aware sanitization pipeline with security metrics.
+ * Cosmic Text Linter Core Engine v2.2.1
+ *
+ * Implements a comprehensive 16-step Unicode security sanitization pipeline that
+ * defends against various Unicode-based attacks including:
+ *
+ * - Trojan Source (CVE-2021-42574) - BiDi text attacks
+ * - Homoglyph spoofing - Visually similar characters from different scripts
+ * - Invisible character steganography - Zero-width and format characters
+ * - TAG block injection - Prompt injection via TAG characters
+ * - Zalgo text - Excessive combining marks
+ * - Mixed script confusion - Script mixing attacks
+ * - Digit spoofing - Non-ASCII digit confusion
+ * - Noncharacter exploitation - Reserved code point abuse
+ * - Private Use Area covert channels - Hidden data transmission
+ *
+ * The sanitization process is mode-aware, offering three security profiles:
+ *
+ * - **Safe**: Preserves multilingual content, emoji, RTL marks (detection-focused)
+ * - **Aggressive**: Latin-preferred, strips risky formatting (moderation-focused)
+ * - **Strict**: Maximum security, ASCII-preferred (security-critical contexts)
+ *
+ * @package CosmicTextLinter
+ * @version 2.2.1
+ * @author Internet Universe
+ * @see https://unicode.org/reports/tr39/ Unicode Security Mechanisms (UTS #39)
+ * @see https://unicode.org/reports/tr9/ Unicode Bidirectional Algorithm (UAX #9)
  */
 class TextLinter
 {
-    public const MAX_INPUT_SIZE = 1048576; // 1 MB
+    /** @var int Maximum allowed input size in bytes (1 MB) */
+    public const MAX_INPUT_SIZE = 1048576;
+
+    /** @var string Current version of the TextLinter engine */
     public const VERSION = '2.2.1';
 
     /**
-     * Execute the sanitization pipeline.
+     * Execute the complete 16-step Unicode security sanitization pipeline.
      *
-     * @param string $text Raw input text (UTF-8)
-     * @param string $mode safe|aggressive|strict
-     * @return array{text:string,stats:array<string,mixed>} Result payload
+     * This is the main entry point for text sanitization. The method processes
+     * input text through multiple security-focused transformations, tracking
+     * statistics and advisory flags for detected threats.
+     *
+     * Pipeline Execution Order:
+     * 1. HTML entity decoding
+     * 2. ASCII control character removal
+     * 3. BiDi control character removal (Trojan Source defense)
+     * 4. Unicode normalization (NFC or NFKC+casefold)
+     * 5. Invisible character removal (two passes)
+     * 6. Whitespace normalization
+     * 7. Digit normalization (non-ASCII to ASCII)
+     * 8. Punctuation normalization (smart quotes, etc.)
+     * 9. Combining mark cleanup (Zalgo defense)
+     * 10. Formatting removal (markdown, bullets)
+     * 11. Noncharacter removal
+     * 12. Private Use Area removal (strict mode only)
+     * 13. TAG block removal (preserves emoji flags)
+     * 14. Homoglyph normalization (aggressive/strict)
+     * 15. Spoof audit (ICU Spoofchecker)
+     * 16. Mirrored punctuation detection
+     * 17. Final cleanup (paragraph detection, whitespace)
+     *
+     * @param string $text Raw input text (must be UTF-8 encoded)
+     * @param string $mode Operation mode: 'safe', 'aggressive', or 'strict'
+     *                     Defaults to 'safe' if invalid value provided
+     *
+     * @return array{text:string,stats:array<string,mixed>} Sanitization result
+     *         - text: Sanitized output text with trailing newline
+     *         - stats: Comprehensive statistics array containing:
+     *           - original_length: Input character count
+     *           - final_length: Output character count
+     *           - characters_removed: Difference between original and final
+     *           - mode: Operation mode used
+     *           - invisibles_removed: Count of invisible characters removed
+     *           - homoglyphs_normalized: Count of homoglyphs converted
+     *           - digits_normalized: Count of non-ASCII digits converted
+     *           - advisories: Array of security detection flags (12 boolean flags)
+     *
+     * @throws RuntimeException If PCRE regex operations fail
+     *
+     * @example
+     * // Basic sanitization (safe mode)
+     * $result = TextLinter::clean("Hello\u{200B}world");
+     * // Returns: ['text' => "Helloworld\n", 'stats' => [...]]
+     *
+     * @example
+     * // Aggressive mode for user-generated content
+     * $result = TextLinter::clean("Hеllο", 'aggressive'); // Cyrillic е, Greek ο
+     * // Returns: ['text' => "Hello\n", 'stats' => [...]]
+     *
+     * @example
+     * // Strict mode for code identifiers
+     * $result = TextLinter::clean("Café №123", 'strict');
+     * // Returns: ['text' => "cafe no123\n", 'stats' => [...]]
+     *
+     * @since 2.0.0
      */
     public static function clean(string $text, string $mode = 'safe'): array
     {
@@ -76,7 +157,21 @@ class TextLinter
         ];
     }
 
-    /** Step 1: Decode HTML entities */
+    /**
+     * Step 1: Decode HTML entities to their Unicode equivalents.
+     *
+     * Converts HTML entities like &nbsp;, &mdash;, &lt; to their actual Unicode
+     * characters. This prevents entity-encoded obfuscation attacks where malicious
+     * content is hidden behind HTML encoding.
+     *
+     * @param string $text Input text that may contain HTML entities
+     * @param array<string,mixed> $stats Statistics array (modified by reference)
+     *
+     * @return string Text with all HTML entities decoded to Unicode
+     *
+     * @internal Pipeline step 1 of 16
+     * @since 2.0.0
+     */
     private static function decodeEntities(string $text, array &$stats): string
     {
         $decoded = html_entity_decode($text, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
@@ -86,7 +181,32 @@ class TextLinter
         return $decoded;
     }
 
-    /** Step 2: Strip ASCII control characters except TAB and LF */
+    /**
+     * Step 2: Remove ASCII control characters (C0 and C1 controls).
+     *
+     * Strips dangerous control characters from the C0 (U+0000-U+001F) and C1
+     * (U+007F-U+009F) ranges, except for TAB (U+0009) and LF (U+000A) which
+     * are preserved for formatting. Control characters can cause:
+     * - Terminal injection attacks
+     * - Log injection
+     * - Protocol confusion
+     * - Rendering corruption
+     *
+     * Preserved characters: TAB (0x09), LF (0x0A)
+     * Removed characters: NUL, SOH, STX, ETX, EOT, ENQ, ACK, BEL, BS, VT, FF,
+     *                     CR, SO, SI, DLE, DC1-4, NAK, SYN, ETB, CAN, EM, SUB,
+     *                     ESC, FS, GS, RS, US, DEL, and C1 controls
+     *
+     * @param string $text Input text
+     * @param array<string,mixed> $stats Statistics array (modified by reference)
+     *
+     * @return string Text with control characters removed
+     *
+     * @throws RuntimeException If PCRE regex fails
+     *
+     * @internal Pipeline step 2 of 16
+     * @since 2.0.0
+     */
     private static function stripControls(string $text, array &$stats): string
     {
         $pattern = '/[\x{0000}-\x{0008}\x{000B}\x{000C}\x{000E}-\x{001F}\x{007F}-\x{009F}]+/u';
@@ -100,7 +220,40 @@ class TextLinter
         return $clean;
     }
 
-    /** Step 3: Strip BiDi controls */
+    /**
+     * Step 3: Remove Bidirectional text control characters (Trojan Source defense).
+     *
+     * Strips all BiDi formatting characters that can be exploited in Trojan Source
+     * attacks (CVE-2021-42574). These characters can make code appear to execute
+     * differently than it actually does by reordering text visually.
+     *
+     * Removed BiDi controls:
+     * - U+202A (LRE) - Left-to-Right Embedding
+     * - U+202B (RLE) - Right-to-Left Embedding
+     * - U+202C (PDF) - Pop Directional Formatting
+     * - U+202D (LRO) - Left-to-Right Override
+     * - U+202E (RLO) - Right-to-Left Override
+     * - U+2066 (LRI) - Left-to-Right Isolate
+     * - U+2067 (RLI) - Right-to-Left Isolate
+     * - U+2068 (FSI) - First Strong Isolate
+     * - U+2069 (PDI) - Pop Directional Isolate
+     *
+     * Note: Legitimate RTL marks (LRM U+200E, RLM U+200F) are preserved in safe
+     * mode and removed in aggressive/strict modes (handled in stripInvisibles).
+     *
+     * @param string $text Input text
+     * @param array<string,mixed> $stats Statistics array (modified by reference)
+     *
+     * @return string Text with BiDi controls removed
+     *
+     * @throws RuntimeException If PCRE regex fails
+     *
+     * @see https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-42574
+     * @see https://trojansource.codes/
+     *
+     * @internal Pipeline step 3 of 16
+     * @since 2.0.0
+     */
     private static function stripBidiControls(string $text, array &$stats): string
     {
         $pattern = '/[\x{202A}-\x{202E}\x{2066}-\x{2069}]/u';

@@ -1,37 +1,131 @@
 /**
- * Cosmic Text Linter v2.2.1
- * Frontend control deck for the retro space console UI.
- * Handles mode toggles, API calls, counters, modal, and toasts.
+ * Cosmic Text Linter Frontend Controller v2.2.1
+ *
+ * Frontend control deck for the retro space console UI. Manages:
+ * - User input and output text areas
+ * - Operation mode selection (safe/aggressive/strict)
+ * - API communication with backend sanitization engine
+ * - Real-time character and byte counting
+ * - Statistics and security advisory display
+ * - Toast notifications for user feedback
+ * - Help modal system
+ * - Dynamic accent color customization
+ * - Keyboard shortcuts (Ctrl/Cmd+Enter to sanitize)
+ *
+ * @fileoverview Main frontend JavaScript controller for Cosmic Text Linter
+ * @version 2.2.1
+ * @author Internet Universe
+ * @requires ES6+ (Intl.Segmenter, fetch, async/await)
+ * @requires DOM APIs (querySelector, addEventListener, etc.)
  */
 
+/* ============================================
+ * DOM Element References
+ * ============================================ */
+
+/** @type {HTMLTextAreaElement} Raw input text area */
 const inputText = document.getElementById('input-text');
+
+/** @type {HTMLTextAreaElement} Sanitized output text area */
 const outputText = document.getElementById('output-text');
+
+/** @type {HTMLButtonElement} Main sanitization trigger button */
 const sanitizeBtn = document.getElementById('sanitize-btn');
+
+/** @type {HTMLButtonElement} Copy to clipboard button */
 const copyBtn = document.getElementById('copy-btn');
+
+/** @type {HTMLElement} Input character/byte counter display */
 const inputCount = document.getElementById('input-count');
+
+/** @type {HTMLElement} Output character/byte counter display */
 const outputCount = document.getElementById('output-count');
+
+/** @type {HTMLElement} Statistics panel display */
 const statsDisplay = document.getElementById('stats');
+
+/** @type {HTMLElement} Toast notification element */
 const toast = document.getElementById('toast');
+
+/** @type {HTMLElement} Security advisory panel container */
 const advisoryPanel = document.getElementById('advisory-panel');
+
+/** @type {HTMLElement} Security advisory list container */
 const advisoryList = document.getElementById('advisory-list');
+
+/** @type {HTMLButtonElement} Help modal trigger button */
 const helpBtn = document.getElementById('help-btn');
+
+/** @type {HTMLElement} Help modal dialog */
 const helpModal = document.getElementById('help-modal');
+
+/** @type {HTMLButtonElement} Modal close button */
 const modalClose = document.getElementById('modal-close');
+
+/** @type {HTMLAnchorElement} About link */
 const aboutLink = document.getElementById('about-link');
+
+/** @type {NodeListOf<HTMLButtonElement>} Mode selector buttons */
 const modeButtons = document.querySelectorAll('.mode-btn');
+
+/** @type {HTMLInputElement} Accent color picker input */
 const accentColorPicker = document.getElementById('accent-color-picker');
+
+/** @type {HTMLInputElement} Accent color hex input field */
 const accentColorHex = document.getElementById('accent-color-hex');
+
+/** @type {HTMLButtonElement} Apply accent color button */
 const accentApply = document.getElementById('accent-apply');
+
+/** @type {HTMLButtonElement} Random accent color button */
 const accentRandom = document.getElementById('accent-random');
+
+/** @type {HTMLElement} Main application container */
 const appContainer = document.querySelector('.container');
+
+/* ============================================
+ * Configuration and State
+ * ============================================ */
+
+/** @type {string} API endpoint URL (configurable via data-api attribute) */
 const API_URL = document.body.dataset.api || 'api/clean.php';
+
+/** @type {CSSStyleDeclaration} Root element style for CSS variable manipulation */
 const rootStyle = document.documentElement.style;
 
+/** @type {boolean} Processing flag to prevent concurrent API calls */
 let isProcessing = false;
+
+/** @type {string} Currently selected operation mode */
 let selectedMode = 'safe';
+
+/** @type {HTMLElement|null} Last focused element (for modal focus management) */
 let lastFocused = null;
+
+/** @type {number|undefined} Toast timeout ID for clearing notifications */
 let toastTimeout;
 
+/* ============================================
+ * Utility Functions
+ * ============================================ */
+
+/**
+ * Count grapheme clusters (user-perceived characters) in a string.
+ *
+ * Uses Intl.Segmenter API when available for accurate grapheme counting
+ * that handles emoji, combining marks, and other complex Unicode sequences.
+ * Falls back to Array.from() for basic character counting.
+ *
+ * @param {string} str - Input string to count
+ * @returns {number} Number of grapheme clusters (user-perceived characters)
+ *
+ * @example
+ * charCount("Hello")           // 5
+ * charCount("Hello 👋🏽")       // 7 (including emoji with skin tone)
+ * charCount("café")            // 4 (é as single grapheme)
+ *
+ * @see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/Segmenter
+ */
 function charCount(str) {
     if (typeof Intl !== 'undefined' && Intl.Segmenter) {
         const seg = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
@@ -44,10 +138,40 @@ function charCount(str) {
     return Array.from(str).length;
 }
 
+/**
+ * Calculate byte length of a string in UTF-8 encoding.
+ *
+ * Uses TextEncoder to accurately measure the byte size of the string
+ * as it would be transmitted over the network or stored in UTF-8.
+ * Important for validating against the 1 MB API size limit.
+ *
+ * @param {string} str - Input string to measure
+ * @returns {number} Byte length in UTF-8 encoding
+ *
+ * @example
+ * byteLength("Hello")   // 5 bytes
+ * byteLength("café")    // 5 bytes (é = 2 bytes in UTF-8)
+ * byteLength("你好")     // 6 bytes (each Chinese char = 3 bytes)
+ *
+ * @see https://developer.mozilla.org/en-US/docs/Web/API/TextEncoder
+ */
 function byteLength(str) {
     return new TextEncoder().encode(str).length;
 }
 
+/**
+ * Format character and byte counts for display.
+ *
+ * Creates a human-readable string showing both character count and byte size
+ * with thousands separators for better readability.
+ *
+ * @param {string} str - String to analyze
+ * @returns {string} Formatted string like "1,234 chars • 5,678 bytes"
+ *
+ * @example
+ * formatCounts("Hello") // "5 chars • 5 bytes"
+ * formatCounts("你好")   // "2 chars • 6 bytes"
+ */
 function formatCounts(str) {
     return `${charCount(str).toLocaleString()} chars • ${byteLength(str).toLocaleString()} bytes`;
 }
