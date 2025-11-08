@@ -2,13 +2,22 @@
 
 A Unicode-security-aware text sanitizer with a retro 90s space aesthetic. Removes invisible characters, defends against Unicode-based attacks (Trojan Source, homoglyph spoofing), and preserves legitimate multilingual text.
 
+## Documentation
+
+- Start with the [Project Overview](docs/overview.md) for context, personas, and the feature matrix.
+- Dive into the [Architecture Guide](docs/architecture.md) for component boundaries, data contracts, and pipeline detail.
+- Reference the [API documentation](docs/api.md) when integrating the `/api/clean.php` endpoint.
+- Consult the [Implementation Notes](docs/implementation.md) before modifying the PHP engine or UI assets.
+- Follow the [Version Branch Playbook](docs/version-branches.md) to publish stable vs experimental documentation branches.
+- Use the [Documentation Hub](docs/README.md) as a navigation index when you add new guides.
+
 ## Features
 
 - **Three Operation Modes**
   - **Safe**: Preserves emoji, RTL marks, and multilingual text while detecting threats
   - **Aggressive**: Latin-only mode, strips format characters and homoglyphs
   - **Strict**: Maximum security with NFKC casefold, PUA removal, and digit normalization
-- **16-Step Unicode Security Pipeline** covering HTML entity decoding, BiDi defense, homoglyph normalization, TAG filtering, Spoofchecker audit, mirrored punctuation detection, and more
+- **18-Step Unicode Security Pipeline** covering HTML entity decoding, BiDi defense, homoglyph normalization, TAG filtering, Spoofchecker audit, mirrored punctuation detection, and more
 - **Retro Cosmic UI** with animated starfield, neon glows, responsive grid layout, accessible controls, and keyboard shortcuts
 - **Comprehensive Stats & Advisories** to highlight invisible characters, confusables, RTL issues, and more
 - **RESTful API** at `/api/clean.php` for programmatic integration
@@ -191,34 +200,3 @@ Open `tests/test-samples.txt` and paste each input into the UI to confirm expect
 - Avoid modifying `api/clean.php` headers unless you understand CORS implications.
 - Consider adding a strict Content Security Policy at the hosting layer to disallow inline scripts and third-party domains beyond Google Fonts.
 
-## Version History
-
-- **v2.2.1** – Production release with ICU enum resolution and enhanced advisories
-- **v2.2.0** – Added advisory matrix and Spoofchecker integration
-- **v2.1.0** – Expanded Unicode sanitation pipeline
-- **v2.0.0** – Initial release with Safe/Aggressive/Strict modes
-
-## Deployment Checklist
-
-- [ ] PHP 7.4+ with `mbstring` and `intl` enabled
-- [ ] Uploaded full directory with correct permissions
-- [ ] Updated `.htaccess` `RewriteBase` for deployment path
-- [ ] Adjusted CORS origin from `*` to production domain
-- [ ] Ran smoke tests against live endpoint
-- [ ] Verified advisories using sample inputs
-- [ ] Confirmed SSL is active on production host
-
-## cPanel Troubleshooting Tips
-
-| Symptom | Possible Cause | Fix |
-| --- | --- | --- |
-| `500 Internal Server Error` | Missing `intl` or `mbstring` | Enable extensions in **Select PHP Version** |
-| API returns `Payload too large` | Upload exceeds 1 MB | Split or compress input |
-| API returns HTML instead of JSON | `mod_rewrite` disabled | Ask host to enable or adjust `.htaccess` |
-| CORS blocked in browser | Production origin not allowed | Update `Access-Control-Allow-Origin` header |
-| Spoofchecker missing | ICU library not built with spoof checker | Optional; advisories fall back gracefully |
-| UI starfield stutters | Low-power device | Enable reduced-motion in OS or add custom CSS |
-
-## Credits
-
-Built by Internet Universe (internetuniverse.org). Inspired by Unicode security research and specifications: UAX #9, UTS #39, UAX #31, UTS #51.
