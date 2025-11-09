@@ -2,6 +2,11 @@
  * Cosmic Text Linter v2.2.1
  * Frontend control deck for the retro space console UI.
  * Handles mode toggles, API calls, counters, modal, and toasts.
+ *
+ * Haptic Feedback:
+ * - iOS Safari 17.4+: Uses <input type="checkbox" switch /> trick
+ * - Android/others: Uses Vibration API (navigator.vibrate)
+ * - Respects prefers-reduced-motion
  */
 
 const inputText = document.getElementById('input-text');
@@ -40,6 +45,212 @@ let outputMode = 'clean';
 let lastInputText = '';
 let lastOutputText = '';
 let comparisonMode = 'char'; // 'char' or 'word'
+
+const hapticRegistry = new WeakSet();
+
+// iOS Safari Haptic Support using <input type="checkbox" switch />
+// This element is created once and reused for all haptic feedback on iOS
+let iOSHapticElement = null;
+let iOSHapticLabel = null;
+let isIOSDevice = false;
+
+function initIOSHaptics() {
+    if (typeof window === 'undefined') return;
+
+    const ua = navigator.userAgent || '';
+    isIOSDevice = /iphone|ipad|ipod/i.test(ua) && /safari/i.test(ua);
+
+    if (!isIOSDevice) return;
+
+    // Create a hidden switch element that iOS Safari will provide haptic feedback for
+    iOSHapticElement = document.createElement('input');
+    iOSHapticElement.type = 'checkbox';
+    iOSHapticElement.id = '__cosmic-haptic-switch';
+    iOSHapticElement.setAttribute('switch', '');
+    iOSHapticElement.style.cssText = 'position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;';
+    iOSHapticElement.setAttribute('aria-hidden', 'true');
+
+    iOSHapticLabel = document.createElement('label');
+    iOSHapticLabel.htmlFor = '__cosmic-haptic-switch';
+    iOSHapticLabel.style.cssText = 'position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;';
+    iOSHapticLabel.setAttribute('aria-hidden', 'true');
+
+    document.body.appendChild(iOSHapticElement);
+    document.body.appendChild(iOSHapticLabel);
+}
+
+// Initialize iOS haptics when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initIOSHaptics, { once: true });
+} else {
+    initIOSHaptics();
+}
+
+class HapticButton {
+    constructor(element) {
+        this.element = element;
+        this.releaseTimeout = null;
+        this.prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches || false;
+        this.supportsVibration = typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function';
+        this.patterns = this.configurePatterns();
+        this.bindHandlers();
+    }
+
+    configurePatterns() {
+        if (this.prefersReducedMotion) {
+            return { press: null, release: null };
+        }
+
+        const ua = navigator.userAgent || '';
+        if (/android/i.test(ua)) {
+            return { press: [14], release: [10, 8] };
+        }
+        if (/iphone|ipad|ipod/i.test(ua)) {
+            // iOS Safari will use switch element, but keep patterns for fallback
+            return { press: [6], release: [8] };
+        }
+        return { press: [10], release: [16] };
+    }
+
+    bindHandlers() {
+        this.onPress = this.onPress.bind(this);
+        this.onRelease = this.onRelease.bind(this);
+        this.onCancel = this.onCancel.bind(this);
+        this.onKeyDown = this.onKeyDown.bind(this);
+        this.onKeyUp = this.onKeyUp.bind(this);
+
+        this.element.addEventListener('pointerdown', this.onPress, { passive: true });
+        this.element.addEventListener('pointerup', this.onRelease, { passive: true });
+        this.element.addEventListener('pointercancel', this.onCancel, { passive: true });
+        this.element.addEventListener('pointerleave', this.onCancel, { passive: true });
+        this.element.addEventListener('blur', this.onCancel, { passive: true });
+        this.element.addEventListener('keydown', this.onKeyDown);
+        this.element.addEventListener('keyup', this.onKeyUp);
+
+        if (!window.PointerEvent) {
+            this.element.addEventListener('touchstart', this.onPress, { passive: true });
+            this.element.addEventListener('touchend', this.onRelease, { passive: true });
+            this.element.addEventListener('touchcancel', this.onCancel, { passive: true });
+            this.element.addEventListener('mousedown', this.onPress);
+            this.element.addEventListener('mouseup', this.onRelease);
+            this.element.addEventListener('mouseleave', this.onCancel);
+        }
+    }
+
+    shouldVibrate(event) {
+        if (!this.patterns.press || !this.patterns.release) return false;
+        if (event?.pointerType) {
+            return event.pointerType === 'touch' || event.pointerType === 'pen';
+        }
+        return window.matchMedia?.('(pointer: coarse)')?.matches ?? false;
+    }
+
+    vibrate(pattern) {
+        if (!pattern || pattern.length === 0) return;
+
+        try {
+            // iOS Safari: use checkbox switch trick for haptic feedback
+            if (isIOSDevice && iOSHapticLabel) {
+                iOSHapticLabel.click();
+                return;
+            }
+
+            // Android/other browsers: use Vibration API
+            if (this.supportsVibration) {
+                navigator.vibrate(pattern);
+            }
+        } catch (error) {
+            console.debug('Haptic feedback blocked', error);
+        }
+    }
+
+    applyPressedState(isActive) {
+        clearTimeout(this.releaseTimeout);
+        if (isActive) {
+            this.element.classList.add('button-pressed');
+            return;
+        }
+
+        this.releaseTimeout = setTimeout(() => {
+            this.element.classList.remove('button-pressed');
+        }, 110);
+    }
+
+    onPress(event) {
+        if (this.element.disabled) return;
+        this.applyPressedState(true);
+        if (this.shouldVibrate(event)) {
+            this.vibrate(this.patterns.press);
+        }
+    }
+
+    onRelease(event) {
+        if (this.element.disabled) return;
+        this.applyPressedState(false);
+        if (this.shouldVibrate(event)) {
+            this.vibrate(this.patterns.release);
+        }
+    }
+
+    onCancel() {
+        clearTimeout(this.releaseTimeout);
+        this.element.classList.remove('button-pressed');
+    }
+
+    onKeyDown(event) {
+        if (this.element.disabled) return;
+        if (event.code === 'Space' || event.code === 'Enter') {
+            this.applyPressedState(true);
+            if (!this.prefersReducedMotion && this.supportsVibration) {
+                this.vibrate(this.patterns.press);
+            }
+        }
+    }
+
+    onKeyUp(event) {
+        if (event.code === 'Space' || event.code === 'Enter') {
+            this.applyPressedState(false);
+            if (!this.prefersReducedMotion && this.supportsVibration) {
+                this.vibrate(this.patterns.release);
+            }
+        }
+    }
+}
+
+function registerHapticTarget(element) {
+    if (!(element instanceof HTMLElement)) return;
+    if (element.hasAttribute('data-haptic-disabled') || element.dataset.hapticBound === 'true') {
+        return;
+    }
+    if (hapticRegistry.has(element)) {
+        return;
+    }
+    hapticRegistry.add(element);
+    element.dataset.hapticBound = 'true';
+    new HapticButton(element);
+}
+
+function initHaptics() {
+    const selector = 'button, .button, [role="button"], .clickable';
+    document.querySelectorAll(selector).forEach(registerHapticTarget);
+
+    if (typeof MutationObserver === 'function') {
+        const observer = new MutationObserver(mutations => {
+            for (const mutation of mutations) {
+                mutation.addedNodes.forEach(node => {
+                    if (!(node instanceof HTMLElement)) {
+                        return;
+                    }
+                    if (node.matches?.(selector)) {
+                        registerHapticTarget(node);
+                    }
+                    node.querySelectorAll?.(selector).forEach(registerHapticTarget);
+                });
+            }
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+    }
+}
 
 function charCount(str) {
     if (typeof Intl !== 'undefined' && Intl.Segmenter) {
@@ -176,11 +387,13 @@ function displayStats(stats = {}) {
     const delta = stats.characters_removed ?? 0;
     const deltaSign = delta > 0 ? '-' : delta < 0 ? '+' : '';
     const deltaAbs = Math.abs(delta);
+    const statusLabel = (stats.status_label || stats.status || 'CLEAN').toString().toUpperCase();
+    const statusState = stats.status_state || (statusLabel.includes('ERROR') ? 'error' : 'complete');
 
     let html = `
         <div class="stat-item">
             <span class="stat-label">SIGNAL STATUS</span>
-            <span class="stat-value">CLEAN</span>
+            <span class="stat-value" id="status" data-status="${statusState}">${statusLabel}</span>
         </div>
         <div class="stat-item">
             <span class="stat-label">MODE</span>
@@ -213,15 +426,16 @@ function displayStats(stats = {}) {
 }
 
 function updateStats(message, status = 'pending') {
-    const statusColors = {
-        pending: 'var(--color-accent)',
-        error: 'var(--color-red)',
-        success: 'var(--color-green)'
+    const statusMap = {
+        pending: 'processing',
+        success: 'complete',
+        error: 'error'
     };
+    const normalizedStatus = statusMap[status] || 'awaiting';
     statsDisplay.innerHTML = `
         <div class="stat-item">
             <span class="stat-label">SIGNAL STATUS</span>
-            <span class="stat-value" style="color:${statusColors[status] || 'inherit'}">${message}</span>
+            <span class="stat-value" id="status" data-status="${normalizedStatus}">${message}</span>
         </div>
     `;
 }
@@ -462,6 +676,8 @@ outputText.addEventListener('input', () => {
 inputCount.textContent = formatCounts('');
 outputCount.textContent = formatCounts('');
 
+initHaptics();
+
 /**
  * Output mode toggle (Clean vs Diff)
  */
@@ -616,6 +832,7 @@ function updateDiffView() {
         comparisonMode = 'char';
         updateDiffView();
     });
+    registerHapticTarget(charBtn);
     modeToggle.appendChild(charBtn);
 
     const wordBtn = document.createElement('button');
@@ -626,6 +843,7 @@ function updateDiffView() {
         comparisonMode = 'word';
         updateDiffView();
     });
+    registerHapticTarget(wordBtn);
     modeToggle.appendChild(wordBtn);
 
     // Legend

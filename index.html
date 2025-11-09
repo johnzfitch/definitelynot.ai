@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
     <meta name="description" content="Cosmic Text Linter - Remove invisible Unicode artifacts, defend against Unicode attacks, restore human-readable text">
     <title>Cosmic Text Linter - Deep Space Text Sanitizer</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13,10 +13,10 @@
 <body data-api="api/clean.php">
     <div class="starfield" aria-hidden="true"></div>
     <div class="starfield-layer-2" aria-hidden="true"></div>
-    <div class="container">
+    <div class="container gradient-bg">
         <header class="header">
             <div class="title-cluster">
-                <h1 class="title">COSMIC TEXT LINTER</h1>
+                <h1 class="title cosmic-glow neon-text">COSMIC TEXT LINTER</h1>
                 <p class="subtitle">Remove the invisible. Restore the human.</p>
             </div>
             <div class="copilot-signal" role="note" aria-label="Agent velocity status">
@@ -25,7 +25,7 @@
             </div>
         </header>
 
-        <nav class="breadcrumbs" aria-label="Navigation trail">
+        <nav class="breadcrumbs nav-buttons" aria-label="Navigation trail">
             <ol>
                 <li><a href="#" class="breadcrumb-link">Home</a></li>
                 <li><span aria-hidden="true">›</span><a href="https://feed.internetuniverse.org" class="breadcrumb-link">Feed</a></li>
@@ -44,7 +44,7 @@
 
         <main class="main-interface">
 
-            <section class="panel input-panel" aria-labelledby="input-label">
+            <section class="panel input-panel section" aria-labelledby="input-label">
                 <div class="panel-header">
                     <label id="input-label" for="input-text" class="panel-label">RAW INPUT</label>
                     <span class="char-count" id="input-count">0 chars • 0 bytes</span>
@@ -60,7 +60,7 @@
                 <p id="input-help" class="visually-hidden">Paste text to sanitize. Press Control or Command plus Enter to sanitize quickly.</p>
             </section>
 
-            <section class="control-section" aria-label="Operation controls">
+            <section class="control-section section" aria-label="Operation controls">
                 <div class="mode-selector">
                     <span class="mode-label" id="mode-label">OPERATION MODE</span>
                     <div class="mode-buttons" role="group" aria-labelledby="mode-label">
@@ -85,7 +85,7 @@
                 </button>
             </section>
 
-            <section class="panel output-panel" aria-labelledby="output-label">
+            <section class="panel output-panel section" aria-labelledby="output-label">
                 <div class="panel-header">
                     <label id="output-label" for="output-text" class="panel-label">SANITIZED OUTPUT</label>
                     <span class="char-count" id="output-count">0 chars • 0 bytes</span>
@@ -110,11 +110,11 @@
                 </button>
             </section>
         </main>
-        <section class="stats-section" aria-label="Sanitization statistics">
+        <section class="stats-section section" aria-label="Sanitization statistics">
             <div class="stats-display" id="stats" role="status" aria-live="polite">
                 <div class="stat-item">
                     <span class="stat-label">SIGNAL STATUS</span>
-                    <span class="stat-value" id="status">AWAITING INPUT</span>
+                    <span class="stat-value" id="status" data-status="awaiting">AWAITING INPUT</span>
                 </div>
             </div>
             <aside class="advisory-panel hidden" id="advisory-panel" role="alert" aria-live="assertive">
