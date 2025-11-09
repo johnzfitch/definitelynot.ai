@@ -58,9 +58,36 @@ function initIOSHaptics() {
     if (typeof window === 'undefined') return;
 
     const ua = navigator.userAgent || '';
-    isIOSDevice = /iphone|ipad|ipod/i.test(ua) && /safari/i.test(ua);
+
+    // Improved iOS Safari detection: must be iOS, must have Safari and Version/,
+    // and must NOT have CriOS (Chrome) or FxiOS (Firefox)
+    isIOSDevice = /iphone|ipad|ipod/i.test(ua) &&
+                  /safari/i.test(ua) &&
+                  /version\//i.test(ua) &&
+                  !/crios/i.test(ua) &&
+                  !/fxios/i.test(ua);
 
     if (!isIOSDevice) return;
+
+    // Check iOS version - switch attribute requires iOS 17.4+
+    // The 'switch' attribute is a proprietary iOS Safari 17.4+ feature
+    // See: https://webkit.org/blog/15045/webkit-features-in-safari-17-4/
+    const iosVersionMatch = ua.match(/OS (\d+)_(\d+)_?(\d+)?/i);
+    let isIOS174OrLater = false;
+    if (iosVersionMatch) {
+        const major = parseInt(iosVersionMatch[1], 10);
+        const minor = parseInt(iosVersionMatch[2], 10);
+        // iOS 17.4+ only
+        if (major > 17 || (major === 17 && minor >= 4)) {
+            isIOS174OrLater = true;
+        }
+    }
+
+    if (!isIOS174OrLater) {
+        // iOS version is too old for switch attribute, disable iOS haptics
+        isIOSDevice = false;
+        return;
+    }
 
     // Create a hidden switch element that iOS Safari will provide haptic feedback for
     iOSHapticElement = document.createElement('input');
@@ -201,18 +228,14 @@ class HapticButton {
         if (this.element.disabled) return;
         if (event.code === 'Space' || event.code === 'Enter') {
             this.applyPressedState(true);
-            if (!this.prefersReducedMotion && this.supportsVibration) {
-                this.vibrate(this.patterns.press);
-            }
+            this.vibrate(this.patterns.press);
         }
     }
 
     onKeyUp(event) {
         if (event.code === 'Space' || event.code === 'Enter') {
             this.applyPressedState(false);
-            if (!this.prefersReducedMotion && this.supportsVibration) {
-                this.vibrate(this.patterns.release);
-            }
+            this.vibrate(this.patterns.release);
         }
     }
 }
