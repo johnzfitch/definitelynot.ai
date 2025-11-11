@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="description" content="Cosmic Text Linter - Remove invisible Unicode artifacts, defend against Unicode attacks, restore human-readable text">
     <title>Cosmic Text Linter - Deep Space Text Sanitizer</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13,38 +13,46 @@
 <body data-api="api/clean.php">
     <div class="starfield" aria-hidden="true"></div>
     <div class="starfield-layer-2" aria-hidden="true"></div>
-    <div class="container gradient-bg">
+    <div class="container">
         <header class="header">
             <div class="title-cluster">
-                <h1 class="title cosmic-glow neon-text">COSMIC TEXT LINTER</h1>
+                <h1 class="title">COSMIC TEXT LINTER</h1>
                 <p class="subtitle">Remove the invisible. Restore the human.</p>
             </div>
-            <div class="copilot-signal" role="note" aria-label="Agent velocity status">
-                <span class="signal-label">COPILOT CHANNEL</span>
-                <span class="signal-value">AGENTS ONLINE · FTL READY</span>
+            <div class="header-controls">
+                <div class="copilot-signal" role="note" aria-label="Agent velocity status">
+                    <span class="signal-label">COPILOT CHANNEL</span>
+                    <span class="signal-value">AGENTS ONLINE · FTL READY</span>
+                </div>
+                <button class="btn-laser" id="accent-random" type="button" aria-label="Randomize color theme">
+                    <span class="laser-beam"></span>
+                    <span class="laser-text">RANDOMIZE VIBES</span>
+                    <span class="laser-beam"></span>
+                </button>
             </div>
         </header>
 
-        <nav class="breadcrumbs nav-buttons" aria-label="Navigation trail">
+        <nav class="breadcrumbs" aria-label="Navigation trail">
             <ol>
                 <li><a href="#" class="breadcrumb-link">Home</a></li>
                 <li><span aria-hidden="true">›</span><a href="https://feed.internetuniverse.org" class="breadcrumb-link">Feed</a></li>
                 <li><span aria-hidden="true">›</span><a href="https://showtime.internetuniverse.org" class="breadcrumb-link">Share the Universe</a></li>
-                <li><span aria-hidden="true">›</span><a href="#" class="breadcrumb-link">Fork</a></li>
+                <li><span aria-hidden="true">›</span><a href="#" class="">Fork</a></li>
                 <li><span aria-hidden="true">›</span><a href="https://github.com/johnzfitch" class="breadcrumb-current">Internal Repo</a></li>
             </ol>
         </nav>
 
         <div class="color-trigger-container">
-            <button class="color-trigger-btn" id="color-trigger" type="button" aria-label="Open color customizer">
-                <span class="color-trigger-icon">🎨</span>
-                <span class="color-trigger-text">CUSTOMIZE COLORS</span>
-            </button>
+                <div class="color-preview" aria-hidden="true">
+                    <span class="preview-chip" data-tone="primary"></span>
+                    <span class="preview-chip" data-tone="secondary"></span>
+                    <span class="preview-chip" data-tone="flare"></span>
+                </div>
         </div>
 
         <main class="main-interface">
 
-            <section class="panel input-panel section" aria-labelledby="input-label">
+            <section class="panel input-panel" aria-labelledby="input-label">
                 <div class="panel-header">
                     <label id="input-label" for="input-text" class="panel-label">RAW INPUT</label>
                     <span class="char-count" id="input-count">0 chars • 0 bytes</span>
@@ -60,7 +68,7 @@
                 <p id="input-help" class="visually-hidden">Paste text to sanitize. Press Control or Command plus Enter to sanitize quickly.</p>
             </section>
 
-            <section class="control-section section" aria-label="Operation controls">
+            <section class="control-section" aria-label="Operation controls">
                 <div class="mode-selector">
                     <span class="mode-label" id="mode-label">OPERATION MODE</span>
                     <div class="mode-buttons" role="group" aria-labelledby="mode-label">
@@ -78,14 +86,14 @@
                         </button>
                     </div>
                 </div>
-                <p class="control-note">Agents adapt faster than memos. Deploy, observe, iterate.</p>
+                <p class="control-note">Agents: Deploy, observe, iterate.</p>
                 <button id="sanitize-btn" class="btn-primary" aria-label="Sanitize text" type="button">
                     <span class="btn-text">SANITIZE TEXT</span>
                     <span class="btn-icon" aria-hidden="true">✦</span>
                 </button>
             </section>
 
-            <section class="panel output-panel section" aria-labelledby="output-label">
+            <section class="panel output-panel" aria-labelledby="output-label">
                 <div class="panel-header">
                     <label id="output-label" for="output-text" class="panel-label">SANITIZED OUTPUT</label>
                     <span class="char-count" id="output-count">0 chars • 0 bytes</span>
@@ -110,11 +118,11 @@
                 </button>
             </section>
         </main>
-        <section class="stats-section section" aria-label="Sanitization statistics">
+        <section class="stats-section" aria-label="Sanitization statistics">
             <div class="stats-display" id="stats" role="status" aria-live="polite">
                 <div class="stat-item">
                     <span class="stat-label">SIGNAL STATUS</span>
-                    <span class="stat-value" id="status" data-status="awaiting">AWAITING INPUT</span>
+                    <span class="stat-value" id="status">AWAITING INPUT</span>
                 </div>
             </div>
             <aside class="advisory-panel hidden" id="advisory-panel" role="alert" aria-live="assertive">
@@ -135,38 +143,7 @@
             </p>
         </footer>
     </div>
-    <div class="toast" id="toast" role="status" aria-live="polite"></div>
-
-    <div class="modal hidden" id="color-modal" role="dialog" aria-labelledby="color-modal-title" aria-modal="true">
-        <div class="modal-content color-modal-content">
-            <div class="modal-header">
-                <h2 id="color-modal-title">Color Command Deck</h2>
-                <button class="modal-close" id="color-modal-close" aria-label="Close dialog" type="button">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="color-wheel-wrap">
-                    <label for="accent-color-picker" class="color-label">Drag the spectrum</label>
-                    <input type="color" id="accent-color-picker" name="accent-color-picker" aria-describedby="accent-color-help" value="#00d9ff">
-                </div>
-                <div class="color-hex-wrap">
-                    <label for="accent-color-hex" class="color-label">Or input a hex code</label>
-                    <div class="hex-input-group">
-                        <span aria-hidden="true">#</span>
-                        <input type="text" id="accent-color-hex" name="accent-color-hex" maxlength="6" placeholder="00d9ff" aria-describedby="accent-color-help">
-                        <button class="btn-tertiary" id="accent-apply" type="button">ENGAGE</button>
-                    </div>
-                </div>
-                <p class="color-help" id="accent-color-help">Your selection rewires every neon edge. Agents respond instantly.</p>
-                <div class="color-preview" aria-hidden="true">
-                    <span class="preview-chip" data-tone="primary"></span>
-                    <span class="preview-chip" data-tone="secondary"></span>
-                    <span class="preview-chip" data-tone="flare"></span>
-                </div>
-                <button class="btn-random" id="accent-random" type="button">RANDOMIZE VIBES</button>
-            </div>
-        </div>
-    </div>
-
+   
     <div class="modal hidden" id="help-modal" role="dialog" aria-labelledby="modal-title" aria-describedby="modal-desc" aria-modal="true">
         <div class="modal-content">
             <div class="modal-header">

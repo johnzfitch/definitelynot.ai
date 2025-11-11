@@ -1,12 +1,7 @@
 /**
- * Cosmic Text Linter v2.2.1
+ * Cosmic Text Linter v2.3.1
  * Frontend control deck for the retro space console UI.
  * Handles mode toggles, API calls, counters, modal, and toasts.
- *
- * Haptic Feedback:
- * - iOS Safari 17.4+: Uses <input type="checkbox" switch /> trick
- * - Android/others: Uses Vibration API (navigator.vibrate)
- * - Respects prefers-reduced-motion
  */
 
 const inputText = document.getElementById('input-text');
@@ -23,13 +18,7 @@ const helpBtn = document.getElementById('help-btn');
 const helpModal = document.getElementById('help-modal');
 const modalClose = document.getElementById('modal-close');
 const aboutLink = document.getElementById('about-link');
-const colorTrigger = document.getElementById('color-trigger');
-const colorModal = document.getElementById('color-modal');
-const colorModalClose = document.getElementById('color-modal-close');
 const modeButtons = document.querySelectorAll('.mode-btn');
-const accentColorPicker = document.getElementById('accent-color-picker');
-const accentColorHex = document.getElementById('accent-color-hex');
-const accentApply = document.getElementById('accent-apply');
 const accentRandom = document.getElementById('accent-random');
 const appContainer = document.querySelector('.container');
 const API_URL = document.body.dataset.api || 'api/clean.php';
@@ -45,235 +34,6 @@ let outputMode = 'clean';
 let lastInputText = '';
 let lastOutputText = '';
 let comparisonMode = 'char'; // 'char' or 'word'
-
-const hapticRegistry = new WeakSet();
-
-// iOS Safari Haptic Support using <input type="checkbox" switch />
-// This element is created once and reused for all haptic feedback on iOS
-let iOSHapticElement = null;
-let iOSHapticLabel = null;
-let isIOSDevice = false;
-
-function initIOSHaptics() {
-    if (typeof window === 'undefined') return;
-
-    const ua = navigator.userAgent || '';
-
-    // Improved iOS Safari detection: must be iOS, must have Safari and Version/,
-    // and must NOT have CriOS (Chrome) or FxiOS (Firefox)
-    isIOSDevice = /iphone|ipad|ipod/i.test(ua) &&
-                  /safari/i.test(ua) &&
-                  /version\//i.test(ua) &&
-                  !/crios/i.test(ua) &&
-                  !/fxios/i.test(ua);
-
-    if (!isIOSDevice) return;
-
-    // Check iOS version - switch attribute requires iOS 17.4+
-    // The 'switch' attribute is a proprietary iOS Safari 17.4+ feature
-    // See: https://webkit.org/blog/15045/webkit-features-in-safari-17-4/
-    const iosVersionMatch = ua.match(/OS (\d+)_(\d+)_?(\d+)?/i);
-    let isIOS174OrLater = false;
-    if (iosVersionMatch) {
-        const major = parseInt(iosVersionMatch[1], 10);
-        const minor = parseInt(iosVersionMatch[2], 10);
-        // iOS 17.4+ only
-        if (major > 17 || (major === 17 && minor >= 4)) {
-            isIOS174OrLater = true;
-        }
-    }
-
-    if (!isIOS174OrLater) {
-        // iOS version is too old for switch attribute, disable iOS haptics
-        isIOSDevice = false;
-        return;
-    }
-
-    // Create a hidden switch element that iOS Safari will provide haptic feedback for
-    iOSHapticElement = document.createElement('input');
-    iOSHapticElement.type = 'checkbox';
-    iOSHapticElement.id = '__cosmic-haptic-switch';
-    iOSHapticElement.setAttribute('switch', '');
-    iOSHapticElement.style.cssText = 'position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;';
-    iOSHapticElement.setAttribute('aria-hidden', 'true');
-
-    iOSHapticLabel = document.createElement('label');
-    iOSHapticLabel.htmlFor = '__cosmic-haptic-switch';
-    iOSHapticLabel.style.cssText = 'position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;';
-    iOSHapticLabel.setAttribute('aria-hidden', 'true');
-
-    document.body.appendChild(iOSHapticElement);
-    document.body.appendChild(iOSHapticLabel);
-}
-
-// Initialize iOS haptics when DOM is ready
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initIOSHaptics, { once: true });
-} else {
-    initIOSHaptics();
-}
-
-class HapticButton {
-    constructor(element) {
-        this.element = element;
-        this.releaseTimeout = null;
-        this.prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches || false;
-        this.supportsVibration = typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function';
-        this.patterns = this.configurePatterns();
-        this.bindHandlers();
-    }
-
-    configurePatterns() {
-        if (this.prefersReducedMotion) {
-            return { press: null, release: null };
-        }
-
-        const ua = navigator.userAgent || '';
-        if (/android/i.test(ua)) {
-            return { press: [14], release: [10, 8] };
-        }
-        if (/iphone|ipad|ipod/i.test(ua)) {
-            // iOS Safari will use switch element, but keep patterns for fallback
-            return { press: [6], release: [8] };
-        }
-        return { press: [10], release: [16] };
-    }
-
-    bindHandlers() {
-        this.onPress = this.onPress.bind(this);
-        this.onRelease = this.onRelease.bind(this);
-        this.onCancel = this.onCancel.bind(this);
-        this.onKeyDown = this.onKeyDown.bind(this);
-        this.onKeyUp = this.onKeyUp.bind(this);
-
-        this.element.addEventListener('pointerdown', this.onPress, { passive: true });
-        this.element.addEventListener('pointerup', this.onRelease, { passive: true });
-        this.element.addEventListener('pointercancel', this.onCancel, { passive: true });
-        this.element.addEventListener('pointerleave', this.onCancel, { passive: true });
-        this.element.addEventListener('blur', this.onCancel, { passive: true });
-        this.element.addEventListener('keydown', this.onKeyDown);
-        this.element.addEventListener('keyup', this.onKeyUp);
-
-        if (!window.PointerEvent) {
-            this.element.addEventListener('touchstart', this.onPress, { passive: true });
-            this.element.addEventListener('touchend', this.onRelease, { passive: true });
-            this.element.addEventListener('touchcancel', this.onCancel, { passive: true });
-            this.element.addEventListener('mousedown', this.onPress);
-            this.element.addEventListener('mouseup', this.onRelease);
-            this.element.addEventListener('mouseleave', this.onCancel);
-        }
-    }
-
-    shouldVibrate(event) {
-        if (!this.patterns.press || !this.patterns.release) return false;
-        if (event?.pointerType) {
-            return event.pointerType === 'touch' || event.pointerType === 'pen';
-        }
-        return window.matchMedia?.('(pointer: coarse)')?.matches ?? false;
-    }
-
-    vibrate(pattern) {
-        if (!pattern || pattern.length === 0) return;
-
-        try {
-            // iOS Safari: use checkbox switch trick for haptic feedback
-            if (isIOSDevice && iOSHapticLabel) {
-                iOSHapticLabel.click();
-                return;
-            }
-
-            // Android/other browsers: use Vibration API
-            if (this.supportsVibration) {
-                navigator.vibrate(pattern);
-            }
-        } catch (error) {
-            console.debug('Haptic feedback blocked', error);
-        }
-    }
-
-    applyPressedState(isActive) {
-        clearTimeout(this.releaseTimeout);
-        if (isActive) {
-            this.element.classList.add('button-pressed');
-            return;
-        }
-
-        this.releaseTimeout = setTimeout(() => {
-            this.element.classList.remove('button-pressed');
-        }, 110);
-    }
-
-    onPress(event) {
-        if (this.element.disabled) return;
-        this.applyPressedState(true);
-        if (this.shouldVibrate(event)) {
-            this.vibrate(this.patterns.press);
-        }
-    }
-
-    onRelease(event) {
-        if (this.element.disabled) return;
-        this.applyPressedState(false);
-        if (this.shouldVibrate(event)) {
-            this.vibrate(this.patterns.release);
-        }
-    }
-
-    onCancel() {
-        clearTimeout(this.releaseTimeout);
-        this.element.classList.remove('button-pressed');
-    }
-
-    onKeyDown(event) {
-        if (this.element.disabled) return;
-        if (event.code === 'Space' || event.code === 'Enter') {
-            this.applyPressedState(true);
-            this.vibrate(this.patterns.press);
-        }
-    }
-
-    onKeyUp(event) {
-        if (event.code === 'Space' || event.code === 'Enter') {
-            this.applyPressedState(false);
-            this.vibrate(this.patterns.release);
-        }
-    }
-}
-
-function registerHapticTarget(element) {
-    if (!(element instanceof HTMLElement)) return;
-    if (element.hasAttribute('data-haptic-disabled') || element.dataset.hapticBound === 'true') {
-        return;
-    }
-    if (hapticRegistry.has(element)) {
-        return;
-    }
-    hapticRegistry.add(element);
-    element.dataset.hapticBound = 'true';
-    new HapticButton(element);
-}
-
-function initHaptics() {
-    const selector = 'button, .button, [role="button"], .clickable';
-    document.querySelectorAll(selector).forEach(registerHapticTarget);
-
-    if (typeof MutationObserver === 'function') {
-        const observer = new MutationObserver(mutations => {
-            for (const mutation of mutations) {
-                mutation.addedNodes.forEach(node => {
-                    if (!(node instanceof HTMLElement)) {
-                        return;
-                    }
-                    if (node.matches?.(selector)) {
-                        registerHapticTarget(node);
-                    }
-                    node.querySelectorAll?.(selector).forEach(registerHapticTarget);
-                });
-            }
-        });
-        observer.observe(document.body, { childList: true, subtree: true });
-    }
-}
 
 function charCount(str) {
     if (typeof Intl !== 'undefined' && Intl.Segmenter) {
@@ -410,13 +170,11 @@ function displayStats(stats = {}) {
     const delta = stats.characters_removed ?? 0;
     const deltaSign = delta > 0 ? '-' : delta < 0 ? '+' : '';
     const deltaAbs = Math.abs(delta);
-    const statusLabel = (stats.status_label || stats.status || 'CLEAN').toString().toUpperCase();
-    const statusState = stats.status_state || (statusLabel.includes('ERROR') ? 'error' : 'complete');
 
     let html = `
         <div class="stat-item">
             <span class="stat-label">SIGNAL STATUS</span>
-            <span class="stat-value" id="status" data-status="${statusState}">${statusLabel}</span>
+            <span class="stat-value">CLEAN</span>
         </div>
         <div class="stat-item">
             <span class="stat-label">MODE</span>
@@ -449,16 +207,15 @@ function displayStats(stats = {}) {
 }
 
 function updateStats(message, status = 'pending') {
-    const statusMap = {
-        pending: 'processing',
-        success: 'complete',
-        error: 'error'
+    const statusColors = {
+        pending: 'var(--color-accent)',
+        error: 'var(--color-red)',
+        success: 'var(--color-green)'
     };
-    const normalizedStatus = statusMap[status] || 'awaiting';
     statsDisplay.innerHTML = `
         <div class="stat-item">
             <span class="stat-label">SIGNAL STATUS</span>
-            <span class="stat-value" id="status" data-status="${normalizedStatus}">${message}</span>
+            <span class="stat-value" style="color:${statusColors[status] || 'inherit'}">${message}</span>
         </div>
     `;
 }
@@ -599,91 +356,13 @@ document.addEventListener('keydown', event => {
     if (event.key === 'Escape') {
         if (!helpModal.classList.contains('hidden')) {
             teardownModalA11y();
-        } else if (!colorModal.classList.contains('hidden')) {
-            teardownColorModal();
         }
     }
 });
 
 /**
- * Color modal management
+ * Color modal management removed - using direct randomize button only
  */
-function setupColorModal() {
-    if (colorModal.classList.contains('hidden')) {
-        colorModal.classList.remove('hidden');
-    }
-    lastFocused = document.activeElement;
-    document.body.classList.add('modal-open');
-    if (appContainer) {
-        appContainer.setAttribute('aria-hidden', 'true');
-        try {
-            appContainer.inert = true;
-        } catch (error) {
-            console.debug('inert unsupported', error);
-        }
-    }
-
-    const focusables = colorModal.querySelectorAll(
-        'button, [href], input, textarea, select, details,[tabindex]:not([tabindex="-1"])'
-    );
-    const first = focusables[0];
-    const last = focusables[focusables.length - 1];
-
-    const trap = event => {
-        if (event.key !== 'Tab') return;
-        if (event.shiftKey) {
-            if (document.activeElement === first) {
-                event.preventDefault();
-                last.focus();
-            }
-        } else if (document.activeElement === last) {
-            event.preventDefault();
-            first.focus();
-        }
-    };
-
-    colorModal.addEventListener('keydown', trap);
-    colorModal.dataset.trap = 'true';
-    colorModal._trapHandler = trap;
-
-    if (first) {
-        first.focus();
-    }
-}
-
-function teardownColorModal() {
-    document.body.classList.remove('modal-open');
-    if (appContainer) {
-        appContainer.removeAttribute('aria-hidden');
-        try {
-            appContainer.inert = false;
-        } catch (error) {
-            console.debug('inert unsupported', error);
-        }
-    }
-    if (colorModal._trapHandler) {
-        colorModal.removeEventListener('keydown', colorModal._trapHandler);
-        delete colorModal._trapHandler;
-    }
-    colorModal.classList.add('hidden');
-    if (lastFocused && typeof lastFocused.focus === 'function') {
-        lastFocused.focus();
-    }
-}
-
-colorTrigger.addEventListener('click', () => {
-    setupColorModal();
-});
-
-colorModalClose.addEventListener('click', () => {
-    teardownColorModal();
-});
-
-colorModal.addEventListener('click', event => {
-    if (event.target === colorModal) {
-        teardownColorModal();
-    }
-});
 
 inputText.addEventListener('keydown', event => {
     if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
@@ -698,8 +377,6 @@ outputText.addEventListener('input', () => {
 
 inputCount.textContent = formatCounts('');
 outputCount.textContent = formatCounts('');
-
-initHaptics();
 
 /**
  * Output mode toggle (Clean vs Diff)
@@ -855,7 +532,6 @@ function updateDiffView() {
         comparisonMode = 'char';
         updateDiffView();
     });
-    registerHapticTarget(charBtn);
     modeToggle.appendChild(charBtn);
 
     const wordBtn = document.createElement('button');
@@ -866,7 +542,6 @@ function updateDiffView() {
         comparisonMode = 'word';
         updateDiffView();
     });
-    registerHapticTarget(wordBtn);
     modeToggle.appendChild(wordBtn);
 
     // Legend
@@ -942,7 +617,7 @@ function updateDiffView() {
     diffView.appendChild(content);
 }
 
-console.log('%cCOSMIC TEXT LINTER v2.2.1', 'color:#00d9ff;font-size:20px;font-weight:bold;');
+console.log('%cCOSMIC TEXT LINTER v2.3.1', 'color:#00d9ff;font-size:20px;font-weight:bold;');
 console.log('%cRemove the invisible. Restore the human.', 'color:#8892b0;font-size:12px;');
 
 /**
@@ -1045,12 +720,6 @@ function applyAccent(hex, options = {}) {
     rootStyle.setProperty('--color-accent-secondary', secondary);
     rootStyle.setProperty('--color-accent-dark', dark);
 
-    if (accentColorPicker) {
-        accentColorPicker.value = normalized;
-    }
-    if (accentColorHex) {
-        accentColorHex.value = normalized.replace('#', '').toUpperCase();
-    }
 
     if (!silent) {
         showToast('NEON VECTOR UPDATED');
@@ -1068,37 +737,7 @@ function randomAccent() {
 const currentAccent = parseCssColor(getComputedStyle(document.documentElement).getPropertyValue('--color-accent')) || DEFAULT_ACCENT;
 applyAccent(currentAccent, { silent: true });
 
-if (accentColorPicker) {
-    accentColorPicker.addEventListener('input', event => {
-        applyAccent(event.target.value, { silent: true });
-    });
-    accentColorPicker.addEventListener('change', event => {
-        applyAccent(event.target.value);
-    });
-}
-
-if (accentColorHex) {
-    accentColorHex.addEventListener('input', event => {
-        event.target.value = event.target.value.replace(/[^0-9a-fA-F]/g, '').slice(0, 6).toUpperCase();
-    });
-    accentColorHex.addEventListener('keydown', event => {
-        if (event.key === 'Enter') {
-            applyAccent(accentColorHex.value);
-        }
-    });
-    accentColorHex.addEventListener('blur', () => {
-        if (accentColorHex.value.length === 6) {
-            applyAccent(accentColorHex.value);
-        }
-    });
-}
-
-if (accentApply) {
-    accentApply.addEventListener('click', () => {
-        applyAccent(accentColorHex?.value || currentAccent);
-    });
-}
-
+// Simple randomize button - no modal
 if (accentRandom) {
     accentRandom.addEventListener('click', () => {
         const hex = randomAccent();
