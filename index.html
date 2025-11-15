@@ -91,8 +91,8 @@
                     <span class="char-count" id="output-count">0 chars • 0 bytes</span>
                 </div>
                 <div class="output-mode-toggle">
+                    <button class="output-mode-btn" data-output-mode="original" aria-pressed="false" type="button">ORIGINAL / DIFF</button>
                     <button class="output-mode-btn active" data-output-mode="clean" aria-pressed="true" type="button">CLEAN</button>
-                    <button class="output-mode-btn" data-output-mode="diff" aria-pressed="false" type="button">DIFF</button>
                 </div>
                 <div id="output-container" class="output-container">
                     <textarea
@@ -123,9 +123,14 @@
                     <span class="advisory-title">SECURITY ADVISORIES DETECTED</span>
                 </div>
                 <div class="advisory-list" id="advisory-list"></div>
-                <button class="advisory-help-btn" id="help-btn" aria-label="Learn about security advisories" type="button">
-                    WHAT DO THESE MEAN?
-                </button>
+                <div class="advisory-actions">
+                    <button class="advisory-help-btn" id="help-btn" aria-label="Learn about security advisories" type="button">
+                        WHAT DO THESE MEAN?
+                    </button>
+                    <button class="advisory-help-btn" id="report-btn" aria-label="Open full Lintenium report" type="button">
+                        FULL REPORT
+                    </button>
+                </div>
             </aside>
         </section>
         <footer class="footer">
@@ -213,6 +218,22 @@
             </div>
         </div>
     </div>
+
+    <div class="modal hidden" id="report-modal" role="dialog" aria-labelledby="report-modal-title" aria-modal="true">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="report-modal-title">Lintenium Security Report</h2>
+                <button class="modal-close" id="report-modal-close" aria-label="Close report" type="button">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="report-content" class="report-content"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lintenium OverType Dependencies -->
+    <script src="https://unpkg.com/overtype@2.0.0/dist/overtype.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/diff-match-patch@1.0.5/index.js"></script>
     <script src="assets/js/script.js" defer></script>
 </body>
 </html>

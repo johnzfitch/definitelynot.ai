@@ -1,7 +1,15 @@
 /**
- * Cosmic Text Linter v2.3.1
- * Frontend control deck for the retro space console UI.
- * Handles mode toggles, API calls, counters, modal, and toasts.
+ * Cosmic Text Linter v2.3.1 - Lintenium Edition
+ * Frontend control deck with OverType integration for CLEAN view,
+ * diff-match-patch for ORIGINAL/DIFF view, and auto-sanitize pipeline.
+ *
+ * Architecture:
+ * - Left panel: Standard textarea for raw input
+ * - Right panel tabs:
+ *   - ORIGINAL/DIFF: Custom diff view using diff-match-patch
+ *   - CLEAN: OverType markdown preview (read-only)
+ *   - REPORT: Detailed security vector breakdown (modal)
+ * - Auto-sanitize: 700ms debounced on input/paste
  */
 
 const inputText = document.getElementById('input-text');
@@ -31,15 +39,28 @@ const API_URL = document.body.dataset.api || 'api/clean.php';
 const rootStyle = document.documentElement.style;
 const outputModeBtns = document.querySelectorAll('.output-mode-btn');
 const diffView = document.getElementById('diff-view');
+const reportBtn = document.getElementById('report-btn');
+const reportModal = document.getElementById('report-modal');
+const reportModalClose = document.getElementById('report-modal-close');
+const reportContent = document.getElementById('report-content');
 
 let isProcessing = false;
 let selectedMode = 'safe';
 let lastFocused = null;
 let toastTimeout;
-let outputMode = 'clean';
+let outputMode = 'clean'; // Default tab is CLEAN (matches HTML active button)
 let lastInputText = '';
 let lastOutputText = '';
+let lastStats = null;
 let comparisonMode = 'char';
+
+// Lintenium OverType & auto-sanitize state
+let overtypeEditor = null;
+let dmp = null;
+let autoTimer = null;
+let lastRequestTime = 0;
+const AUTO_DELAY = 700; // ms
+const MAX_AUTO_LENGTH = 50000; // chars
 
 function charCount(str) {
   if (typeof Intl !== 'undefined' && Intl.Segmenter) {
@@ -61,6 +82,198 @@ function formatCounts(str) {
   return `${charCount(str).toLocaleString()} chars • ${byteLength(str).toLocaleString()} bytes`;
 }
 
+// ==============================================================
+// LINTENIUM INITIALIZATION - OverType & diff-match-patch
+// ==============================================================
+
+function initializeLintenium() {
+  // Initialize diff-match-patch
+  if (typeof diff_match_patch !== 'undefined') {
+    dmp = new diff_match_patch();
+    console.log('%c✓ diff-match-patch initialized', 'color:#00d9ff');
+  } else {
+    console.warn('diff-match-patch not loaded');
+  }
+
+  // Initialize OverType for CLEAN view only
+  const OT = window.OverType && (window.OverType.default || window.OverType);
+  if (OT) {
+    try {
+      const [editor] = new OT('#output-text', {
+        theme: 'cave', // Dark theme matches Cosmic aesthetic
+        toolbar: false,
+        showStats: false,
+        textareaProps: { readonly: true },
+        placeholder: 'Cleaned text will appear here...'
+      });
+      overtypeEditor = editor;
+
+      // Set initial placeholder for CLEAN view
+      if (outputMode === 'clean') {
+        overtypeEditor.setValue('Process text to see clean output');
+      }
+
+      console.log('%c✓ OverType initialized for CLEAN view', 'color:#00d9ff');
+    } catch (error) {
+      console.error('OverType initialization failed:', error);
+    }
+  } else {
+    console.warn('OverType not loaded');
+  }
+}
+
+// Initialize on DOM ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializeLintenium);
+} else {
+  initializeLintenium();
+}
+
+// ==============================================================
+// AUTO-SANITIZE PIPELINE - Debounced real-time sanitization
+// ==============================================================
+
+function scheduleAutoSanitize() {
+  clearTimeout(autoTimer);
+  autoTimer = setTimeout(() => {
+    const text = inputText.value;
+
+    // Empty state - clear output
+    if (!text.trim()) {
+      lastInputText = '';
+      lastOutputText = '';
+      lastStats = null;
+      clearStatsAndOutput();
+      return;
+    }
+
+    // Length safeguard - require manual sanitize for large text
+    if (text.length > MAX_AUTO_LENGTH) {
+      showToast('Text too large for auto-sanitize. Click SANITIZE button.');
+      return;
+    }
+
+    // Run sanitization
+    runSanitize(text, selectedMode);
+  }, AUTO_DELAY);
+}
+
+function clearStatsAndOutput() {
+  updateStats('AWAITING INPUT', 'awaiting');
+  advisoryPanel.classList.add('hidden');
+
+  if (outputMode === 'clean' && overtypeEditor) {
+    overtypeEditor.setValue('Process text to see clean output');
+  } else if (outputMode === 'original') {
+    while (diffView.firstChild) {
+      diffView.removeChild(diffView.firstChild);
+    }
+    const placeholder = document.createElement('div');
+    placeholder.className = 'diff-placeholder';
+    placeholder.textContent = 'Process text to see diff';
+    diffView.appendChild(placeholder);
+  }
+
+  outputText.value = '';
+  outputCount.textContent = formatCounts('');
+}
+
+// Shared sanitize function - used by both auto and manual triggers
+function runSanitize(text, mode) {
+  const requestTime = Date.now();
+  lastRequestTime = requestTime;
+
+  // Visual feedback for manual sanitize only
+  const isManual = isProcessing;
+  if (isManual) {
+    sanitizeBtn.classList.add('processing');
+    sanitizeBtn.querySelector('.btn-text').textContent = 'PROCESSING...';
+  }
+  updateStats('PROCESSING SIGNAL...', 'pending');
+  advisoryPanel.classList.add('hidden');
+
+  fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, mode })
+  })
+  .then(response => {
+    if (!response.ok) {
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        return response.json().then(err => {
+          throw new Error(err.error || `HTTP ${response.status}`);
+        });
+      }
+      return response.text().then(raw => {
+        throw new Error(raw || `HTTP ${response.status}`);
+      });
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      throw new Error('Unexpected response from server');
+    }
+
+    return response.json();
+  })
+  .then(data => {
+    // Ignore stale responses
+    if (requestTime < lastRequestTime) return;
+
+    // Store results
+    lastInputText = text;
+    lastOutputText = data.text;
+    lastStats = data.stats;
+
+    // Update UI
+    outputText.value = data.text;
+    outputCount.textContent = formatCounts(data.text || '');
+    displayStats(data.stats);
+    displayAdvisories(data.stats?.advisories || {});
+
+    // Render based on active tab
+    if (outputMode === 'original') {
+      updateDiffView();
+    } else if (outputMode === 'clean') {
+      renderCleanView();
+    }
+
+    if (isManual) {
+      showToast('TRANSMISSION CLEAN');
+    }
+  })
+  .catch(error => {
+    // Ignore stale errors
+    if (requestTime < lastRequestTime) return;
+
+    console.error('Sanitization failed:', error);
+    showToast(error.name === 'AbortError' ? 'CONNECTION TIMEOUT' : 'TRANSMISSION ERROR');
+    updateStats('ERROR: SIGNAL LOST', 'error');
+  })
+  .finally(() => {
+    if (isManual) {
+      isProcessing = false;
+      sanitizeBtn.classList.remove('processing');
+      sanitizeBtn.querySelector('.btn-text').textContent = 'SANITIZE TEXT';
+    }
+  });
+}
+
+function renderCleanView() {
+  if (!overtypeEditor) {
+    outputText.value = lastOutputText || '';
+    return;
+  }
+
+  overtypeEditor.setValue(lastOutputText || '');
+  overtypeEditor.showPreviewMode(); // Read-only preview with clickable links
+}
+
+// Wire auto-sanitize to input events
+inputText.addEventListener('input', scheduleAutoSanitize);
+inputText.addEventListener('paste', scheduleAutoSanitize);
+
 modeButtons.forEach(button => {
   button.addEventListener('click', () => {
     modeButtons.forEach(btn => {
@@ -77,7 +290,8 @@ inputText.addEventListener('input', () => {
   inputCount.textContent = formatCounts(inputText.value);
 });
 
-sanitizeBtn.addEventListener('click', async () => {
+// Manual SANITIZE button - calls shared runSanitize function
+sanitizeBtn.addEventListener('click', () => {
   if (isProcessing) return;
 
   const text = inputText.value;
@@ -87,63 +301,12 @@ sanitizeBtn.addEventListener('click', async () => {
   }
 
   isProcessing = true;
-  sanitizeBtn.classList.add('processing');
-  sanitizeBtn.querySelector('.btn-text').textContent = 'PROCESSING...';
-  updateStats('PROCESSING SIGNAL...', 'pending');
-  advisoryPanel.classList.add('hidden');
-
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 2000000);
-    const response = await fetch(API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ text, mode: selectedMode }),
-      signal: controller.signal
-    });
-    clearTimeout(timeout);
-
-    if (!response.ok) {
-      const contentType = response.headers.get('content-type') || '';
-      if (contentType.includes('application/json')) {
-        const errorPayload = await response.json();
-        throw new Error(errorPayload.error || `HTTP ${response.status}`);
-      }
-      const raw = await response.text();
-      throw new Error(raw || `HTTP ${response.status}`);
-    }
-
-    const contentType = response.headers.get('content-type') || '';
-    if (!contentType.includes('application/json')) {
-      throw new Error('Unexpected response from server');
-    }
-
-    const result = await response.json();
-    outputText.value = result.text;
-    outputCount.textContent = formatCounts(result.text || '');
-    lastInputText = text;
-    lastOutputText = result.text;
-    displayStats(result.stats);
-    displayAdvisories(result.stats?.advisories || {});
-    if (outputMode === 'diff') {
-      updateDiffView();
-    }
-    showToast('TRANSMISSION CLEAN');
-  } catch (error) {
-    console.error('Sanitization failed:', error);
-    showToast(error.name === 'AbortError' ? 'CONNECTION TIMEOUT' : 'TRANSMISSION ERROR');
-    updateStats('ERROR: SIGNAL LOST', 'error');
-  } finally {
-    isProcessing = false;
-    sanitizeBtn.classList.remove('processing');
-    sanitizeBtn.querySelector('.btn-text').textContent = 'SANITIZE TEXT';
-  }
+  runSanitize(text, selectedMode);
 });
 
+// Copy button - ALWAYS copies sanitized text (lastOutputText)
 copyBtn.addEventListener('click', async () => {
-  const text = outputText.value;
+  const text = lastOutputText || outputText.value;
   if (!text) {
     showToast('NO DATA TO COPY');
     return;
@@ -152,7 +315,7 @@ copyBtn.addEventListener('click', async () => {
   try {
     if (navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(text);
-      showToast('COORDINATES COPIED');
+      showToast('CLEAN TEXT COPIED');
       return;
     }
 
@@ -165,7 +328,7 @@ copyBtn.addEventListener('click', async () => {
     fallback.select();
     document.execCommand('copy');
     document.body.removeChild(fallback);
-    showToast('COORDINATES COPIED');
+    showToast('CLEAN TEXT COPIED');
   } catch (error) {
     console.error('Copy failed:', error);
     showToast('COPY FAILED');
@@ -372,7 +535,235 @@ document.addEventListener('keydown', event => {
       teardownModalA11y();
     } else if (!colorModal.classList.contains('hidden')) {
       teardownColorModal();
+    } else if (!reportModal.classList.contains('hidden')) {
+      teardownReportModal();
     }
+  }
+});
+
+// ==============================================================
+// FULL REPORT MODAL - Detailed security vector breakdown
+// ==============================================================
+
+function buildReportDom(stats, original, sanitized) {
+  const container = document.createElement('div');
+
+  if (!stats) {
+    const emptyMsg = document.createElement('p');
+    emptyMsg.className = 'report-empty';
+    emptyMsg.textContent = 'No sanitization run yet. Process text to generate a security report.';
+    container.appendChild(emptyMsg);
+    return container;
+  }
+
+  const delta = (original?.length || 0) - (sanitized?.length || 0);
+
+  // Advisory labels matching help modal
+  const advisoryLabels = {
+    had_bidi_controls: 'BiDi controls detected (Trojan Source risk)',
+    had_mixed_scripts: 'Mixed script usage detected',
+    had_default_ignorables: 'Invisible characters found',
+    had_tag_chars: 'TAG block characters detected',
+    had_orphan_combining: 'Orphan combining marks removed',
+    confusable_suspected: 'Confusable characters detected',
+    had_html_entities: 'HTML entities decoded',
+    had_ascii_controls: 'ASCII control characters removed',
+    had_noncharacters: 'Noncharacters removed',
+    had_private_use: 'Private Use Area characters removed',
+    had_mirrored_punctuation: 'Mirrored punctuation in RTL context',
+    had_non_ascii_digits: 'Non-ASCII digits normalized'
+  };
+
+  // Summary section
+  const summarySection = document.createElement('div');
+  summarySection.className = 'report-section';
+
+  const summaryTitle = document.createElement('h3');
+  summaryTitle.textContent = 'Summary';
+  summarySection.appendChild(summaryTitle);
+
+  const summaryTable = document.createElement('table');
+  summaryTable.className = 'report-table';
+  const tbody = document.createElement('tbody');
+
+  const summaryData = [
+    ['Characters removed', delta >= 0 ? `+${delta}` : String(delta)],
+    ['Invisibles removed', String(stats.invisibles_removed || 0)],
+    ['Homoglyphs normalized', String(stats.homoglyphs_normalized || 0)],
+    ['Digits normalized', String(stats.digits_normalized || 0)],
+    ['Mode used', (stats.mode || 'safe').toUpperCase()]
+  ];
+
+  summaryData.forEach(([label, value]) => {
+    const row = document.createElement('tr');
+    const th = document.createElement('th');
+    th.textContent = label;
+    const td = document.createElement('td');
+    td.textContent = value;
+    row.appendChild(th);
+    row.appendChild(td);
+    tbody.appendChild(row);
+  });
+
+  summaryTable.appendChild(tbody);
+  summarySection.appendChild(summaryTable);
+  container.appendChild(summarySection);
+
+  // Security vectors section
+  const vectorsSection = document.createElement('div');
+  vectorsSection.className = 'report-section';
+
+  const vectorsTitle = document.createElement('h3');
+  vectorsTitle.textContent = 'Security Vectors Detected';
+  vectorsSection.appendChild(vectorsTitle);
+
+  const advisories = stats.advisories || {};
+  const activeAdvisories = Object.entries(advisories).filter(([, value]) => value === true);
+
+  if (activeAdvisories.length > 0) {
+    const activeList = document.createElement('ul');
+    activeList.className = 'report-advisories';
+
+    activeAdvisories.forEach(([key]) => {
+      const li = document.createElement('li');
+      li.className = 'report-advisory-active';
+
+      const bullet = document.createElement('span');
+      bullet.className = 'report-bullet';
+      bullet.textContent = '▸';
+
+      const text = document.createTextNode(advisoryLabels[key] || key);
+
+      li.appendChild(bullet);
+      li.appendChild(text);
+      activeList.appendChild(li);
+    });
+
+    vectorsSection.appendChild(activeList);
+  } else {
+    const note = document.createElement('p');
+    note.className = 'report-note';
+    note.textContent = 'No security issues detected.';
+    vectorsSection.appendChild(note);
+  }
+
+  container.appendChild(vectorsSection);
+
+  // Not detected section
+  const inactiveAdvisories = Object.entries(advisories).filter(([, value]) => value === false);
+
+  if (inactiveAdvisories.length > 0) {
+    const inactiveSection = document.createElement('div');
+    inactiveSection.className = 'report-section';
+
+    const inactiveTitle = document.createElement('h3');
+    inactiveTitle.textContent = 'Not Detected';
+    inactiveSection.appendChild(inactiveTitle);
+
+    const inactiveList = document.createElement('ul');
+    inactiveList.className = 'report-advisories';
+
+    inactiveAdvisories.forEach(([key]) => {
+      const li = document.createElement('li');
+      li.className = 'report-advisory-inactive';
+
+      const bullet = document.createElement('span');
+      bullet.className = 'report-bullet';
+      bullet.textContent = '○';
+
+      const text = document.createTextNode(advisoryLabels[key] || key);
+
+      li.appendChild(bullet);
+      li.appendChild(text);
+      inactiveList.appendChild(li);
+    });
+
+    inactiveSection.appendChild(inactiveList);
+    container.appendChild(inactiveSection);
+  }
+
+  return container;
+}
+
+function setupReportModal() {
+  // Clear and rebuild report content using safe DOM methods
+  reportContent.textContent = '';
+  const reportDom = buildReportDom(lastStats, lastInputText, lastOutputText);
+  reportContent.appendChild(reportDom);
+
+  if (reportModal.classList.contains('hidden')) {
+    reportModal.classList.remove('hidden');
+  }
+  lastFocused = document.activeElement;
+  document.body.classList.add('modal-open');
+  if (appContainer) {
+    appContainer.setAttribute('aria-hidden', 'true');
+    try {
+      appContainer.inert = true;
+    } catch (error) {
+      console.debug('inert unsupported', error);
+    }
+  }
+
+  const focusables = reportModal.querySelectorAll(
+    'button, [href], input, textarea, select, details,[tabindex]:not([tabindex="-1"])'
+  );
+  const first = focusables[0];
+  const last = focusables[focusables.length - 1];
+
+  const trap = event => {
+    if (event.key !== 'Tab') return;
+    if (event.shiftKey) {
+      if (document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      }
+    } else if (document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+
+  reportModal.addEventListener('keydown', trap);
+  reportModal.dataset.trap = 'true';
+  reportModal._trapHandler = trap;
+
+  if (first) {
+    first.focus();
+  }
+}
+
+function teardownReportModal() {
+  document.body.classList.remove('modal-open');
+  if (appContainer) {
+    appContainer.removeAttribute('aria-hidden');
+    try {
+      appContainer.inert = false;
+    } catch (error) {
+      console.debug('inert unsupported', error);
+    }
+  }
+  if (reportModal._trapHandler) {
+    reportModal.removeEventListener('keydown', reportModal._trapHandler);
+    delete reportModal._trapHandler;
+  }
+  reportModal.classList.add('hidden');
+  if (lastFocused && typeof lastFocused.focus === 'function') {
+    lastFocused.focus();
+  }
+}
+
+reportBtn.addEventListener('click', () => {
+  setupReportModal();
+});
+
+reportModalClose.addEventListener('click', () => {
+  teardownReportModal();
+});
+
+reportModal.addEventListener('click', event => {
+  if (event.target === reportModal) {
+    teardownReportModal();
   }
 });
 
@@ -467,23 +858,32 @@ outputText.addEventListener('input', () => {
 inputCount.textContent = formatCounts('');
 outputCount.textContent = formatCounts('');
 
+// Output tab switching - ORIGINAL/DIFF vs CLEAN
 outputModeBtns.forEach(btn => {
   btn.addEventListener('click', () => {
-    outputModeBtns.forEach(b => {
-      b.classList.remove('active');
-      b.setAttribute('aria-pressed', 'false');
-    });
-    btn.classList.add('active');
-    btn.setAttribute('aria-pressed', 'true');
-    outputMode = btn.dataset.outputMode;
+    const mode = btn.dataset.outputMode;
+    if (mode === outputMode) return; // Already active
 
-    if (outputMode === 'diff') {
+    // Update active states
+    outputModeBtns.forEach(b => {
+      const isActive = b === btn;
+      b.classList.toggle('active', isActive);
+      b.setAttribute('aria-pressed', String(isActive));
+    });
+
+    outputMode = mode;
+
+    // Show/hide appropriate views
+    if (outputMode === 'original') {
+      // Show diff view, hide OverType
       outputText.classList.add('hidden');
       diffView.classList.remove('hidden');
       updateDiffView();
-    } else {
+    } else if (outputMode === 'clean') {
+      // Show OverType, hide diff view
       outputText.classList.remove('hidden');
       diffView.classList.add('hidden');
+      renderCleanView();
     }
   });
 });
