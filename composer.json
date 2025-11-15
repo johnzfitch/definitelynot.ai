@@ -1,0 +1,16 @@
+{
+    "name": "definitelynot/cosmic-text-linter",
+    "description": "Cosmic Text Linter with VectorHit diff layer",
+    "type": "library",
+    "require": {
+        "php": ">=7.4",
+        "sebastian/diff": "^4.0|^5.0"
+    },
+    "require-dev": {},
+    "autoload": {
+        "classmap": ["api/"]
+    },
+    "config": {
+        "optimize-autoloader": true
+    }
+}
