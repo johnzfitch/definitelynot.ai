@@ -56,7 +56,6 @@ let comparisonMode = 'char';
 
 // Lintenium OverType & auto-sanitize state
 let overtypeEditor = null;
-let dmp = null;
 let autoTimer = null;
 let lastRequestTime = 0;
 const AUTO_DELAY = 700; // ms
@@ -83,18 +82,10 @@ function formatCounts(str) {
 }
 
 // ==============================================================
-// LINTENIUM INITIALIZATION - OverType & diff-match-patch
+// LINTENIUM INITIALIZATION - OverType for CLEAN view
 // ==============================================================
 
 function initializeLintenium() {
-  // Initialize diff-match-patch
-  if (typeof diff_match_patch !== 'undefined') {
-    dmp = new diff_match_patch();
-    console.log('%c✓ diff-match-patch initialized', 'color:#00d9ff');
-  } else {
-    console.warn('diff-match-patch not loaded');
-  }
-
   // Initialize OverType for CLEAN view only
   const OT = window.OverType && (window.OverType.default || window.OverType);
   if (OT) {
@@ -153,8 +144,8 @@ function scheduleAutoSanitize() {
       return;
     }
 
-    // Run sanitization
-    runSanitize(text, selectedMode);
+    // Run sanitization (auto-triggered, not manual)
+    runSanitize(text, selectedMode, false);
   }, AUTO_DELAY);
 }
 
@@ -179,12 +170,11 @@ function clearStatsAndOutput() {
 }
 
 // Shared sanitize function - used by both auto and manual triggers
-function runSanitize(text, mode) {
+function runSanitize(text, mode, isManual = false) {
   const requestTime = Date.now();
   lastRequestTime = requestTime;
 
   // Visual feedback for manual sanitize only
-  const isManual = isProcessing;
   if (isManual) {
     sanitizeBtn.classList.add('processing');
     sanitizeBtn.querySelector('.btn-text').textContent = 'PROCESSING...';
@@ -248,7 +238,7 @@ function runSanitize(text, mode) {
     if (requestTime < lastRequestTime) return;
 
     console.error('Sanitization failed:', error);
-    showToast(error.name === 'AbortError' ? 'CONNECTION TIMEOUT' : 'TRANSMISSION ERROR');
+    showToast('TRANSMISSION ERROR');
     updateStats('ERROR: SIGNAL LOST', 'error');
   })
   .finally(() => {
@@ -262,17 +252,38 @@ function runSanitize(text, mode) {
 
 function renderCleanView() {
   if (!overtypeEditor) {
+    // Fallback: show textarea, hide OverType container if present
     outputText.value = lastOutputText || '';
+    outputText.style.display = '';
+    const overtypeContainer = document.querySelector('.overtype-container, .overtype-wrapper, [data-overtype]');
+    if (overtypeContainer) overtypeContainer.style.display = 'none';
     return;
   }
 
+  // OverType is available: use it for CLEAN view
   overtypeEditor.setValue(lastOutputText || '');
   overtypeEditor.showPreviewMode(); // Read-only preview with clickable links
 }
 
 // Wire auto-sanitize to input events
-inputText.addEventListener('input', scheduleAutoSanitize);
-inputText.addEventListener('paste', scheduleAutoSanitize);
+inputText.addEventListener('input', () => {
+  inputCount.textContent = formatCounts(inputText.value);
+  scheduleAutoSanitize();
+});
+
+// Paste event with immediate length check (before debounce)
+inputText.addEventListener('paste', (event) => {
+  // Use setTimeout to get the pasted text after it's inserted
+  setTimeout(() => {
+    const text = inputText.value;
+    if (text.length > MAX_AUTO_LENGTH) {
+      showToast('Text too large for auto-sanitize. Click SANITIZE button.');
+      // Don't schedule auto-sanitize for large pastes
+      return;
+    }
+    scheduleAutoSanitize();
+  }, 0);
+});
 
 modeButtons.forEach(button => {
   button.addEventListener('click', () => {
@@ -283,11 +294,8 @@ modeButtons.forEach(button => {
     button.classList.add('active');
     button.setAttribute('aria-pressed', 'true');
     selectedMode = button.dataset.mode;
+    scheduleAutoSanitize(); // Re-sanitize with new mode
   });
-});
-
-inputText.addEventListener('input', () => {
-  inputCount.textContent = formatCounts(inputText.value);
 });
 
 // Manual SANITIZE button - calls shared runSanitize function
@@ -301,7 +309,7 @@ sanitizeBtn.addEventListener('click', () => {
   }
 
   isProcessing = true;
-  runSanitize(text, selectedMode);
+  runSanitize(text, selectedMode, true);
 });
 
 // Copy button - ALWAYS copies sanitized text (lastOutputText)
@@ -587,7 +595,7 @@ function buildReportDom(stats, original, sanitized) {
   const tbody = document.createElement('tbody');
 
   const summaryData = [
-    ['Characters removed', delta >= 0 ? `+${delta}` : String(delta)],
+    ['Characters removed', delta > 0 ? String(delta) : (delta < 0 ? String(delta) : '0')],
     ['Invisibles removed', String(stats.invisibles_removed || 0)],
     ['Homoglyphs normalized', String(stats.homoglyphs_normalized || 0)],
     ['Digits normalized', String(stats.digits_normalized || 0)],

@@ -1490,17 +1490,18 @@ body.modal-open {
 
 .diff-view {
     width: 100%;
-    min-height: 200px;
-    padding: 1rem;
-    background: rgba(4, 7, 29, 0.5);
-    border: 1px solid rgba(140, 165, 255, 0.2);
-    border-radius: 6px;
+    min-height: 260px;
+    padding: 0.9rem 1rem;
+    background: rgba(8, 12, 38, 0.92);
+    border: 2px solid rgba(0, 217, 255, 0.25);
+    border-radius: 8px;
     font-family: var(--font-mono);
-    font-size: 0.9rem;
-    line-height: 1.6;
+    font-size: 16px;
+    line-height: 1.5;
     color: var(--color-light-cyan);
     overflow-y: auto;
     max-height: 400px;
+    backdrop-filter: blur(2px);
 }
 
 .diff-view.hidden {
@@ -1594,12 +1595,12 @@ body.modal-open {
 
 /* Enhanced Diff Content */
 .diff-content {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.95rem;
-    line-height: 1.6;
+    font-family: var(--font-mono);
+    font-size: 16px;
+    line-height: 1.5;
     white-space: pre-wrap;
     word-break: break-word;
-    padding: 1rem;
+    padding: 0.9rem 1rem;
     background: rgba(0, 0, 0, 0.3);
     border-radius: 4px;
     max-height: 500px;
