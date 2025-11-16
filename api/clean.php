@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/TextLinter.php';
+require_once __DIR__ . '/Logger.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('X-Content-Type-Options: nosniff');
@@ -23,6 +24,10 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 if (!extension_loaded('mbstring') || !extension_loaded('intl')) {
+    Logger::error('Required PHP extensions missing', [
+        'mbstring' => extension_loaded('mbstring'),
+        'intl' => extension_loaded('intl'),
+    ]);
     http_response_code(500);
     echo json_encode(['error' => 'Required PHP extensions missing (mbstring + intl)']);
     exit;
@@ -72,7 +77,20 @@ if (!in_array($mode, ['safe', 'aggressive', 'strict'], true)) {
 }
 
 try {
+    $startTime = microtime(true);
+    $requestId = Logger::getRequestId();
+
+    Logger::debug('Processing request', [
+        'request_id' => $requestId,
+        'mode' => $mode,
+        'input_bytes' => $byteLength,
+    ]);
+
     $result = TextLinter::clean($text, $mode);
+    $duration = microtime(true) - $startTime;
+
+    // Log request statistics (privacy-safe, no raw text)
+    Logger::logRequest($mode, $result['stats'], $duration);
 
     $unicodeVersion = class_exists('IntlChar')
         ? IntlChar::UNICODE_VERSION
@@ -94,6 +112,11 @@ try {
 
     echo json_encode($response, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
 } catch (Throwable $e) {
+    Logger::error('Processing error', [
+        'error' => $e->getMessage(),
+        'file' => $e->getFile(),
+        'line' => $e->getLine(),
+    ]);
     http_response_code(500);
     echo json_encode([
         'error' => 'Internal processing error',

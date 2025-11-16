@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/Logger.php';
+
 /**
  * Cosmic Text Linter core engine v2.2.1
  * Implements the Unicode-aware sanitization pipeline with security metrics.
@@ -587,7 +589,7 @@ class TextLinter
             return;
         }
         $logged[$key] = true;
-        error_log('[CosmicTextLinter] ' . $message);
+        Logger::security($key, $message);
     }
 
 }

@@ -1,0 +1,107 @@
+name: PHP Tests and Linting
+
+on:
+  push:
+    branches: [ main, dev, claude/** ]
+  pull_request:
+    branches: [ main, dev ]
+
+jobs:
+  test:
+    name: PHP ${{ matrix.php-version }} Tests
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        php-version: ['7.4', '8.0', '8.1', '8.2', '8.3']
+      fail-fast: false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          extensions: mbstring, intl
+          coverage: none
+
+      - name: Validate PHP extensions
+        run: |
+          php -m | grep mbstring || exit 1
+          php -m | grep intl || exit 1
+          echo "✅ Required extensions loaded"
+
+      - name: Check PHP syntax
+        run: |
+          echo "Checking PHP syntax..."
+          php -l api/clean.php
+          php -l api/TextLinter.php
+          php -l api/Logger.php
+          if [ -f test_invisibles.php ]; then php -l test_invisibles.php; fi
+          if [ -f test_markdown.php ]; then php -l test_markdown.php; fi
+          echo "✅ All PHP files have valid syntax"
+
+      - name: Run automated test suite
+        run: |
+          echo "Running comprehensive test suite..."
+          php tests/run-all-tests.php
+
+      - name: Test inline unit tests
+        run: |
+          echo "Running inline core tests..."
+          php -r "
+          require_once 'api/TextLinter.php';
+
+          // Test 1: Basic functionality
+          \$result = TextLinter::clean('Hello world', 'safe');
+          if (!isset(\$result['text']) || !isset(\$result['stats'])) {
+              echo 'FAIL: Basic structure test\n';
+              exit(1);
+          }
+
+          // Test 2: Zero-width removal
+          \$result = TextLinter::clean(\"Hello\u{200B}world\", 'safe');
+          if (strpos(\$result['text'], 'Helloworld') === false || \$result['stats']['invisibles_removed'] === 0) {
+              echo 'FAIL: Zero-width removal test\n';
+              exit(1);
+          }
+
+          // Test 3: Mode selection
+          \$result = TextLinter::clean('test', 'aggressive');
+          if (\$result['stats']['mode'] !== 'aggressive') {
+              echo 'FAIL: Mode selection test\n';
+              exit(1);
+          }
+
+          echo \"✅ All inline core tests passed\n\";
+          "
+
+      - name: Test logging integration
+        run: |
+          echo "Testing logging infrastructure..."
+          php -r "
+          require_once 'api/Logger.php';
+
+          // Test log level configuration
+          Logger::setLevel('info');
+          Logger::info('Test message');
+          Logger::debug('Debug message');
+          Logger::warn('Warning message');
+          Logger::error('Error message');
+
+          // Test request ID generation
+          \$id = Logger::getRequestId();
+          if (strlen(\$id) !== 16) {
+              echo 'FAIL: Request ID generation\n';
+              exit(1);
+          }
+
+          echo \"✅ Logging integration works\n\";
+          "
+
+      - name: Report test results
+        if: always()
+        run: |
+          echo "::notice::PHP ${{ matrix.php-version }} tests completed"
