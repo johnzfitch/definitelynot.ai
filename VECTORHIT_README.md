@@ -66,7 +66,7 @@ Allowed `kind` values representing different security concerns:
   'summary' => LinteniumSummary,            // Aggregate summary
   'diffOps' => [                            // Grapheme-level diff operations
     [
-      'type' => 'equal'|'delete'|'insert'|'replace',
+      'type' => 'equal'|'delete'|'insert',
       'aStart' => int,                      // Grapheme index in original
       'aLen' => int,                        // Grapheme count in original
       'bStart' => int,                      // Grapheme index in sanitized

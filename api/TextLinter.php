@@ -634,6 +634,14 @@ class TextLinter
      */
     public static function analyzeWithDiff(string $text, string $mode = 'safe'): array
     {
+        // Input validation
+        if (strlen($text) > self::MAX_INPUT_SIZE) {
+            throw new \InvalidArgumentException('Input exceeds maximum size of ' . self::MAX_INPUT_SIZE . ' bytes');
+        }
+        
+        // Validate mode parameter
+        $mode = in_array($mode, ['safe', 'aggressive', 'strict'], true) ? $mode : 'safe';
+        
         $original = $text;
 
         // 1. Classify codepoints in the original text
@@ -677,14 +685,19 @@ class TextLinter
         ];
     }
 
-    /**
-     * Split a UTF-8 string into Unicode grapheme clusters.
-     *
-     * Grapheme indices are used throughout diffOps and VectorHits.
-     *
-     * @param string $text
-     * @return array<int,string> Grapheme clusters in order.
-     */
+     /**
+      * Split a UTF-8 string into Unicode grapheme clusters.
+      *
+      * Grapheme indices are used throughout diffOps and VectorHits.
+      *
+      * NOTE: Requires the intl extension for proper grapheme cluster segmentation.
+      * Without intl, falls back to codepoint splitting which has limitations:
+      * - Multi-codepoint graphemes (emoji with modifiers, combined characters) will be split incorrectly
+      * - Complex Unicode sequences may not be handled properly
+      *
+      * @param string $text
+      * @return array<int,string> Grapheme clusters in order.
+      */
     private static function splitGraphemes(string $text): array
     {
         if (function_exists('grapheme_str_split')) {
@@ -695,6 +708,7 @@ class TextLinter
         }
 
         // Fallback: split by codepoint using regex
+        // WARNING: This does NOT properly handle grapheme clusters without intl extension
         $result = preg_split('//u', $text, -1, PREG_SPLIT_NO_EMPTY);
         return is_array($result) ? $result : [];
     }
@@ -728,7 +742,7 @@ class TextLinter
 
                 $kinds = self::detectVectorKinds($cp, $char);
 
-                if (!empty($kinds) || true) { // Keep all codepoints for now
+                if (!empty($kinds)) {
                     $classifications[] = [
                         'graphemeIndex' => $graphemeIndex,
                         'cp' => $cp,
@@ -759,12 +773,13 @@ class TextLinter
         }
 
         // Default ignorables (invisibles)
+        // NOTE: U+200E-U+200F (LRM/RLM) are excluded as they're already classified as bidi_controls
         $invisibleRanges = [
             [0x200B, 0x200D], [0x2028, 0x2029], [0x2060, 0x2064],
             [0x206A, 0x206F], [0xFEFF, 0xFEFF], [0xFFF9, 0xFFFB],
             [0x00AD, 0x00AD], [0x180E, 0x180E],
             [0xFE00, 0xFE0E], [0xE0100, 0xE01EF],
-            [0x200E, 0x200F], [0x061C, 0x061C],
+            [0x061C, 0x061C],
             [0xFE0F, 0xFE0F], [0x180B, 0x180D],
         ];
         foreach ($invisibleRanges as [$start, $end]) {
@@ -801,7 +816,10 @@ class TextLinter
             $kinds[] = 'non_ascii_digits';
         }
 
-        // Combining marks (potential orphans - this is a simple heuristic)
+        // Combining marks
+        // NOTE: This is a simplified heuristic that marks ALL combining marks as potential orphans.
+        // A proper implementation would check if the combining mark follows a base character.
+        // For now, this classifies all combining marks as 'orphan_combining_marks'.
         if (class_exists('IntlChar')) {
             $category = IntlChar::charType($cp);
             if ($category === IntlChar::CHAR_CATEGORY_NON_SPACING_MARK ||
@@ -847,15 +865,16 @@ class TextLinter
         $bClusters = self::splitGraphemes($b);
 
         // Use sebastian/diff if available
-        if (class_exists('SebastianBergmann\Diff\Differ')) {
+        if (class_exists(\SebastianBergmann\Diff\Differ::class)) {
             try {
                 $differ = new \SebastianBergmann\Diff\Differ();
                 $diff = $differ->diffToArray($aClusters, $bClusters);
 
-                $ops = self::normalizeSebastiuanDiffOps($diff, $aClusters, $bClusters);
+                $ops = self::normalizeSebastianDiffOps($diff, $aClusters, $bClusters);
                 return [$aClusters, $bClusters, $ops];
             } catch (\Throwable $e) {
-                // Fall through to simple diff
+                // Log the error and fall through to simple diff
+                error_log('[CosmicTextLinter] sebastian/diff failed: ' . $e->getMessage());
             }
         }
 
@@ -872,7 +891,7 @@ class TextLinter
      * @param array $bClusters Sanitized grapheme clusters
      * @return array<int,array<string,mixed>>
      */
-    private static function normalizeSebastiuanDiffOps(array $diff, array $aClusters, array $bClusters): array
+    private static function normalizeSebastianDiffOps(array $diff, array $aClusters, array $bClusters): array
     {
         $ops = [];
         $aIndex = 0;
@@ -1057,7 +1076,7 @@ class TextLinter
                     foreach ($c['kinds'] as $kind) {
                         $kindCounts[$kind] = ($kindCounts[$kind] ?? 0) + 1;
                     }
-                    $codePoints[] = sprintf('U+%04X', $c['cp']);
+                    $codePoints[] = sprintf('U+%05X', $c['cp']);
                 }
             }
 
