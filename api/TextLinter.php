@@ -768,12 +768,16 @@ class TextLinter
         $kinds = [];
 
         // BiDi controls
-        if (($cp >= 0x202A && $cp <= 0x202E) || ($cp >= 0x2066 && $cp <= 0x2069)) {
+        if (($cp >= 0x202A && $cp <= 0x202E) ||
+            ($cp >= 0x2066 && $cp <= 0x2069) ||
+            ($cp >= 0x200E && $cp <= 0x200F) ||
+            $cp === 0x061C) {
             $kinds[] = 'bidi_controls';
         }
 
         // Default ignorables (invisibles)
         // NOTE: U+200E-U+200F (LRM/RLM) are excluded as they're already classified as bidi_controls
+        // Note: U+200E-200F and U+061C are BiDi marks, classified above
         $invisibleRanges = [
             [0x200B, 0x200D], [0x2028, 0x2029], [0x2060, 0x2064],
             [0x206A, 0x206F], [0xFEFF, 0xFEFF], [0xFFF9, 0xFFFB],
@@ -875,6 +879,7 @@ class TextLinter
             } catch (\Throwable $e) {
                 // Log the error and fall through to simple diff
                 error_log('[CosmicTextLinter] sebastian/diff failed: ' . $e->getMessage());
+                self::logSecurityEvent('sebastian_diff_failure', 'sebastian/diff failed: ' . $e->getMessage() . '; falling back to LCS diff');
             }
         }
 

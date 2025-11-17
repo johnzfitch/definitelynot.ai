@@ -66,12 +66,17 @@ Allowed `kind` values representing different security concerns:
   'summary' => LinteniumSummary,            // Aggregate summary
   'diffOps' => [                            // Grapheme-level diff operations
     [
+<<<<<<< copilot/sub-pr-11
       'type' => 'equal'|'delete'|'insert',
+=======
+      'type' => 'equal'|'delete'|'insert', // Operation type
+>>>>>>> claude/add-vectorhit-diff-layer-017nn5LVNJKGDda5w8orGamz
       'aStart' => int,                      // Grapheme index in original
       'aLen' => int,                        // Grapheme count in original
       'bStart' => int,                      // Grapheme index in sanitized
       'bLen' => int                         // Grapheme count in sanitized
     ],
+    // Note: 'replace' operations are represented as consecutive 'delete' + 'insert' ops
     // ...
   ]
 ]
