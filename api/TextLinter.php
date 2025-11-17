@@ -3,15 +3,31 @@
 declare(strict_types=1);
 
 /**
- * Cosmic Text Linter core engine v2.2.1
+ * Cosmic Text Linter core engine v2.3.1
  * Implements the Unicode-aware sanitization pipeline with security metrics.
+ * Now includes VectorHit-based diff and reporting layer.
  */
 class TextLinter
 {
     public const MAX_INPUT_SIZE = 1048576; // 1 MB
-    public const VERSION = '2.2.1';
+    public const VERSION = '2.3.1';
     private const TRANSLITERATOR_CHUNK_SIZE = 4096; // grapheme batch size for ICU safety
     private const TRANSLITERATOR_MAX_SECONDS = 0.15; // per-request budget
+
+    /**
+     * VectorKind priority for determining primary kind when multiple apply.
+     */
+    private const VECTOR_KIND_PRIORITY = [
+        'bidi_controls',
+        'tag_characters',
+        'noncharacters',
+        'default_ignorables',
+        'private_use',
+        'non_ascii_digits',
+        'orphan_combining_marks',
+        'confusables',
+        'mixed_scripts',
+    ];
 
     /**
      * Execute the sanitization pipeline.
@@ -588,6 +604,547 @@ class TextLinter
         }
         $logged[$key] = true;
         error_log('[CosmicTextLinter] ' . $message);
+    }
+
+    // ===================================================================
+    // VectorHit-based Diff and Reporting Layer
+    // ===================================================================
+
+    /**
+     * Run the full sanitization pipeline and return enriched diff + vector data.
+     *
+     * Does not change the behavior of clean(). This is a richer, analysis-focused API.
+     *
+     * Usage:
+     *   $result = TextLinter::analyzeWithDiff($input, 'strict');
+     *   foreach ($result['hits'] as $hit) {
+     *       echo "{$hit['kind']}: {$hit['note']}\n";
+     *   }
+     *
+     * @param string $text Original text
+     * @param string $mode "safe"|"aggressive"|"strict"
+     * @return array LinteniumResult
+     * @typedef LinteniumResult array{
+     *   originalText: string,
+     *   sanitizedText: string,
+     *   hits: array<int,VectorHit>,
+     *   summary: LinteniumSummary,
+     *   diffOps: array<int,array<string,mixed>>
+     * }
+     */
+    public static function analyzeWithDiff(string $text, string $mode = 'safe'): array
+    {
+        if (strlen($text) > self::MAX_INPUT_SIZE) {
+            throw new InvalidArgumentException('Input exceeds maximum size of ' . self::MAX_INPUT_SIZE . ' bytes');
+        }
+        $mode = in_array($mode, ['safe', 'aggressive', 'strict'], true) ? $mode : 'safe';
+
+        $original = $text;
+
+        // 1. Classify codepoints in the original text
+        $classifications = self::classifyCodepoints($original);
+
+        // 2. Run the existing sanitization pipeline
+        $result = self::clean($text, $mode);
+        $sanitized = $result['text'];
+        $stats = $result['stats'];
+
+        // 3. Build VectorHits from diff + classifications
+        $hits = self::buildVectorHits($original, $sanitized, $classifications, $mode);
+
+        // 4. Build summary
+        $vectorCounts = [];
+        foreach ($hits as $hit) {
+            $k = $hit['kind'];
+            $vectorCounts[$k] = ($vectorCounts[$k] ?? 0) + 1;
+        }
+
+        $notes = [];
+        foreach ($vectorCounts as $kind => $count) {
+            $notes[] = sprintf('%d occurrence(s) of %s', $count, $kind);
+        }
+
+        $summary = [
+            'totalChanges' => count($hits),
+            'vectorCounts' => $vectorCounts,
+            'notes' => $notes,
+        ];
+
+        // 5. Compute diffOps for frontend reuse
+        [$aClusters, $bClusters, $ops] = self::diffGraphemes($original, $sanitized);
+
+        return [
+            'originalText' => $original,
+            'sanitizedText' => $sanitized,
+            'hits' => $hits,
+            'summary' => $summary,
+            'diffOps' => $ops,
+        ];
+    }
+
+    /**
+     * Split a UTF-8 string into Unicode grapheme clusters.
+     *
+     * Grapheme indices are used throughout diffOps and VectorHits.
+     *
+     * @param string $text
+     * @return array<int,string> Grapheme clusters in order.
+     */
+    private static function splitGraphemes(string $text): array
+    {
+        if (function_exists('grapheme_str_split')) {
+            $result = grapheme_str_split($text);
+            if (is_array($result)) {
+                return $result;
+            }
+        }
+
+        // Fallback: split by codepoint using regex
+        $result = preg_split('//u', $text, -1, PREG_SPLIT_NO_EMPTY);
+        return is_array($result) ? $result : [];
+    }
+
+    /**
+     * Classify codepoints in the original text into VectorKinds.
+     *
+     * This is a static analysis pass that runs on the original text before any mutation.
+     *
+     * @param string $text Original text (pre-sanitization)
+     * @return array<int,array{
+     *   graphemeIndex:int,
+     *   cp:int,
+     *   char:string,
+     *   kinds:string[]
+     * }>
+     */
+    private static function classifyCodepoints(string $text): array
+    {
+        $graphemes = self::splitGraphemes($text);
+        $classifications = [];
+
+        foreach ($graphemes as $graphemeIndex => $grapheme) {
+            $length = mb_strlen($grapheme, 'UTF-8');
+            for ($i = 0; $i < $length; $i++) {
+                $char = mb_substr($grapheme, $i, 1, 'UTF-8');
+                $cp = mb_ord($char, 'UTF-8');
+                if ($cp === false) {
+                    continue;
+                }
+
+                $kinds = self::detectVectorKinds($cp, $char);
+
+                if (!empty($kinds)) {
+                    $classifications[] = [
+                        'graphemeIndex' => $graphemeIndex,
+                        'cp' => $cp,
+                        'char' => $char,
+                        'kinds' => $kinds,
+                    ];
+                }
+            }
+        }
+
+        return $classifications;
+    }
+
+    /**
+     * Detect which VectorKinds a codepoint belongs to.
+     *
+     * @param int $cp Codepoint value
+     * @param string $char UTF-8 character
+     * @return string[] Array of VectorKind values
+     */
+    private static function detectVectorKinds(int $cp, string $char): array
+    {
+        $kinds = [];
+
+        // BiDi controls
+        if (($cp >= 0x202A && $cp <= 0x202E) ||
+            ($cp >= 0x2066 && $cp <= 0x2069) ||
+            ($cp >= 0x200E && $cp <= 0x200F) ||
+            $cp === 0x061C) {
+            $kinds[] = 'bidi_controls';
+        }
+
+        // Default ignorables (invisibles)
+        // Note: U+200E-200F and U+061C are BiDi marks, classified above
+        $invisibleRanges = [
+            [0x200B, 0x200D], [0x2028, 0x2029], [0x2060, 0x2064],
+            [0x206A, 0x206F], [0xFEFF, 0xFEFF], [0xFFF9, 0xFFFB],
+            [0x00AD, 0x00AD], [0x180E, 0x180E],
+            [0xFE00, 0xFE0E], [0xE0100, 0xE01EF],
+            [0x061C, 0x061C],
+            [0xFE0F, 0xFE0F], [0x180B, 0x180D],
+        ];
+        foreach ($invisibleRanges as [$start, $end]) {
+            if ($cp >= $start && $cp <= $end) {
+                $kinds[] = 'default_ignorables';
+                break;
+            }
+        }
+
+        // TAG block characters
+        if ($cp >= 0xE0000 && $cp <= 0xE007F) {
+            $kinds[] = 'tag_characters';
+        }
+
+        // Noncharacters
+        if (($cp >= 0xFDD0 && $cp <= 0xFDEF) || ($cp & 0xFFFE) === 0xFFFE) {
+            $kinds[] = 'noncharacters';
+        }
+
+        // Private Use Area
+        if (($cp >= 0xE000 && $cp <= 0xF8FF) ||
+            ($cp >= 0xF0000 && $cp <= 0xFFFFD) ||
+            ($cp >= 0x100000 && $cp <= 0x10FFFD)) {
+            $kinds[] = 'private_use';
+        }
+
+        // Non-ASCII digits
+        if (class_exists('IntlChar')) {
+            $digit = IntlChar::charDigitValue($cp);
+            if (is_int($digit) && $digit >= 0 && $digit <= 9 && ($cp < 0x30 || $cp > 0x39)) {
+                $kinds[] = 'non_ascii_digits';
+            }
+        } elseif (($cp >= 0x0660 && $cp <= 0x0669) || ($cp >= 0x06F0 && $cp <= 0x06F9)) {
+            $kinds[] = 'non_ascii_digits';
+        }
+
+        // Combining marks (potential orphans - this is a simple heuristic)
+        if (class_exists('IntlChar')) {
+            $category = IntlChar::charType($cp);
+            if ($category === IntlChar::CHAR_CATEGORY_NON_SPACING_MARK ||
+                $category === IntlChar::CHAR_CATEGORY_ENCLOSING_MARK ||
+                $category === IntlChar::CHAR_CATEGORY_COMBINING_SPACING_MARK) {
+                $kinds[] = 'orphan_combining_marks';
+            }
+        }
+
+        // Confusables & mixed scripts - simplified placeholder
+        // In production, you'd use Spoofchecker or a confusables table
+        if ($cp > 0x7F) {
+            // For now, mark non-ASCII letters as potential confusables/mixed_scripts
+            // This is a placeholder; real implementation would use proper confusable detection
+            if (class_exists('IntlChar')) {
+                if (IntlChar::isalpha($cp)) {
+                    // Mark as potential confusable - real implementation would check against tables
+                    // $kinds[] = 'confusables';
+                    // $kinds[] = 'mixed_scripts';
+                }
+            }
+        }
+
+        return $kinds;
+    }
+
+    /**
+     * Compute a grapheme-level diff between two strings.
+     *
+     * Uses sebastian/diff library to compute Myers diff on grapheme sequences.
+     *
+     * @param string $a Original text
+     * @param string $b Sanitized text
+     * @return array{
+     *   0: array<int,string>,
+     *   1: array<int,string>,
+     *   2: array<int,array<string,mixed>>
+     * } [$aClusters, $bClusters, $ops]
+     */
+    private static function diffGraphemes(string $a, string $b): array
+    {
+        $aClusters = self::splitGraphemes($a);
+        $bClusters = self::splitGraphemes($b);
+
+        // Use sebastian/diff if available
+        if (class_exists(\SebastianBergmann\Diff\Differ::class)) {
+            try {
+                $differ = new \SebastianBergmann\Diff\Differ();
+                $diff = $differ->diffToArray($aClusters, $bClusters);
+
+                $ops = self::normalizeSebastianDiffOps($diff, $aClusters, $bClusters);
+                return [$aClusters, $bClusters, $ops];
+            } catch (\Throwable $e) {
+                self::logSecurityEvent('sebastian_diff_failure', 'sebastian/diff failed: ' . $e->getMessage() . '; falling back to LCS diff');
+            }
+        }
+
+        // Fallback: simple LCS-based diff
+        $ops = self::simpleDiff($aClusters, $bClusters);
+        return [$aClusters, $bClusters, $ops];
+    }
+
+    /**
+     * Normalize sebastian/diff output into our standardized op format.
+     *
+     * @param array $diff Sebastian diff array
+     * @param array $aClusters Original grapheme clusters
+     * @param array $bClusters Sanitized grapheme clusters
+     * @return array<int,array<string,mixed>>
+     */
+    private static function normalizeSebastianDiffOps(array $diff, array $aClusters, array $bClusters): array
+    {
+        $ops = [];
+        $aIndex = 0;
+        $bIndex = 0;
+
+        foreach ($diff as $entry) {
+            $token = $entry[0];
+            $type = $entry[1];
+
+            if ($type === 0) { // EQUAL
+                $ops[] = [
+                    'type' => 'equal',
+                    'aStart' => $aIndex,
+                    'aLen' => 1,
+                    'bStart' => $bIndex,
+                    'bLen' => 1,
+                ];
+                $aIndex++;
+                $bIndex++;
+            } elseif ($type === 1) { // DELETE
+                $ops[] = [
+                    'type' => 'delete',
+                    'aStart' => $aIndex,
+                    'aLen' => 1,
+                    'bStart' => $bIndex,
+                    'bLen' => 0,
+                ];
+                $aIndex++;
+            } elseif ($type === 2) { // INSERT
+                $ops[] = [
+                    'type' => 'insert',
+                    'aStart' => $aIndex,
+                    'aLen' => 0,
+                    'bStart' => $bIndex,
+                    'bLen' => 1,
+                ];
+                $bIndex++;
+            }
+        }
+
+        // Merge consecutive ops of the same type
+        return self::mergeConsecutiveOps($ops);
+    }
+
+    /**
+     * Merge consecutive operations of the same type.
+     *
+     * @param array $ops
+     * @return array
+     */
+    private static function mergeConsecutiveOps(array $ops): array
+    {
+        if (empty($ops)) {
+            return [];
+        }
+
+        $merged = [];
+        $current = $ops[0];
+
+        for ($i = 1; $i < count($ops); $i++) {
+            $next = $ops[$i];
+
+            if ($next['type'] === $current['type'] &&
+                $next['aStart'] === $current['aStart'] + $current['aLen'] &&
+                $next['bStart'] === $current['bStart'] + $current['bLen']) {
+                // Merge
+                $current['aLen'] += $next['aLen'];
+                $current['bLen'] += $next['bLen'];
+            } else {
+                $merged[] = $current;
+                $current = $next;
+            }
+        }
+
+        $merged[] = $current;
+        return $merged;
+    }
+
+    /**
+     * Simple fallback diff implementation using LCS.
+     *
+     * @param array $a
+     * @param array $b
+     * @return array<int,array<string,mixed>>
+     */
+    private static function simpleDiff(array $a, array $b): array
+    {
+        $m = count($a);
+        $n = count($b);
+
+        // Build LCS table
+        $lcs = array_fill(0, $m + 1, array_fill(0, $n + 1, 0));
+
+        for ($i = 1; $i <= $m; $i++) {
+            for ($j = 1; $j <= $n; $j++) {
+                if ($a[$i - 1] === $b[$j - 1]) {
+                    $lcs[$i][$j] = $lcs[$i - 1][$j - 1] + 1;
+                } else {
+                    $lcs[$i][$j] = max($lcs[$i - 1][$j], $lcs[$i][$j - 1]);
+                }
+            }
+        }
+
+        // Backtrack to build ops
+        $ops = [];
+        $i = $m;
+        $j = $n;
+
+        while ($i > 0 || $j > 0) {
+            if ($i > 0 && $j > 0 && $a[$i - 1] === $b[$j - 1]) {
+                array_unshift($ops, [
+                    'type' => 'equal',
+                    'aStart' => $i - 1,
+                    'aLen' => 1,
+                    'bStart' => $j - 1,
+                    'bLen' => 1,
+                ]);
+                $i--;
+                $j--;
+            } elseif ($j > 0 && ($i === 0 || $lcs[$i][$j - 1] >= $lcs[$i - 1][$j])) {
+                array_unshift($ops, [
+                    'type' => 'insert',
+                    'aStart' => $i,
+                    'aLen' => 0,
+                    'bStart' => $j - 1,
+                    'bLen' => 1,
+                ]);
+                $j--;
+            } else {
+                array_unshift($ops, [
+                    'type' => 'delete',
+                    'aStart' => $i - 1,
+                    'aLen' => 1,
+                    'bStart' => $j,
+                    'bLen' => 0,
+                ]);
+                $i--;
+            }
+        }
+
+        return self::mergeConsecutiveOps($ops);
+    }
+
+    /**
+     * Build VectorHits from the original text, sanitized text, and codepoint classifications.
+     *
+     * @param string $original   Original text
+     * @param string $sanitized  Sanitized text
+     * @param array<int,array{graphemeIndex:int,cp:int,char:string,kinds:string[]}> $classifications
+     * @param string $mode       "safe"|"aggressive"|"strict"
+     * @return array<int,array>  Array of VectorHit
+     */
+    private static function buildVectorHits(
+        string $original,
+        string $sanitized,
+        array $classifications,
+        string $mode
+    ): array {
+        [$aClusters, $bClusters, $ops] = self::diffGraphemes($original, $sanitized);
+
+        $hits = [];
+
+        foreach ($ops as $op) {
+            if ($op['type'] === 'equal') {
+                continue;
+            }
+
+            $origStart = $op['aStart'];
+            $origEnd = $op['aStart'] + $op['aLen'];
+            $sanStart = $op['bStart'];
+            $sanEnd = $op['bStart'] + $op['bLen'];
+
+            $originalSlice = implode('', array_slice($aClusters, $origStart, $op['aLen']));
+            $sanitizedSlice = implode('', array_slice($bClusters, $sanStart, $op['bLen']));
+
+            // Collect kinds and codepoints from classifications
+            $kindCounts = [];
+            $codePoints = [];
+
+            foreach ($classifications as $c) {
+                if ($c['graphemeIndex'] >= $origStart && $c['graphemeIndex'] < $origEnd) {
+                    foreach ($c['kinds'] as $kind) {
+                        $kindCounts[$kind] = ($kindCounts[$kind] ?? 0) + 1;
+                    }
+                    $codePoints[] = sprintf('U+%05X', $c['cp']);
+                }
+            }
+
+            // Remove duplicates
+            $codePoints = array_values(array_unique($codePoints));
+
+            // If no kinds detected, skip (no security issue)
+            if (empty($kindCounts)) {
+                continue;
+            }
+
+            // Create a VectorHit for each kind present
+            foreach ($kindCounts as $kind => $count) {
+                $hits[] = [
+                    'id' => uniqid($kind . '_', true),
+                    'kind' => $kind,
+                    'severity' => self::severityForKind($kind, $mode),
+                    'originalRange' => ['startGrapheme' => $origStart, 'endGrapheme' => $origEnd],
+                    'sanitizedRange' => ['startGrapheme' => $sanStart, 'endGrapheme' => $sanEnd],
+                    'originalSlice' => $originalSlice,
+                    'sanitizedSlice' => $sanitizedSlice,
+                    'codePoints' => $codePoints,
+                    'note' => self::noteForKind($kind),
+                ];
+            }
+        }
+
+        return $hits;
+    }
+
+    /**
+     * Determine severity level for a VectorKind.
+     *
+     * @param string $kind VectorKind
+     * @param string $mode Sanitization mode
+     * @return string "info"|"warn"|"block"
+     */
+    private static function severityForKind(string $kind, string $mode): string
+    {
+        $blockKinds = ['bidi_controls', 'tag_characters', 'noncharacters'];
+        if (in_array($kind, $blockKinds, true)) {
+            return 'block';
+        }
+
+        $warnKinds = ['default_ignorables', 'private_use', 'non_ascii_digits'];
+        if (in_array($kind, $warnKinds, true)) {
+            return 'warn';
+        }
+
+        // info kinds: orphan_combining_marks, confusables, mixed_scripts
+        if ($mode === 'safe') {
+            return 'info';
+        }
+
+        return 'warn';
+    }
+
+    /**
+     * Generate a human-readable note for a VectorKind.
+     *
+     * @param string $kind VectorKind
+     * @return string Descriptive note
+     */
+    private static function noteForKind(string $kind): string
+    {
+        $notes = [
+            'bidi_controls' => 'BiDi control characters detected; potential text direction spoofing.',
+            'mixed_scripts' => 'Mixed script usage detected; potential confusable attack.',
+            'default_ignorables' => 'Invisible or default-ignorable characters detected.',
+            'tag_characters' => 'TAG block characters detected; potential hidden data.',
+            'orphan_combining_marks' => 'Orphan combining marks detected; potential rendering issues.',
+            'confusables' => 'Confusable characters detected; potential visual spoofing.',
+            'noncharacters' => 'Unicode noncharacters detected; invalid for interchange.',
+            'private_use' => 'Private Use Area characters detected; undefined semantics.',
+            'non_ascii_digits' => 'Non-ASCII digits detected; normalized to ASCII.',
+        ];
+
+        return $notes[$kind] ?? 'Security-relevant character detected.';
     }
 
 }
