@@ -634,6 +634,11 @@ class TextLinter
      */
     public static function analyzeWithDiff(string $text, string $mode = 'safe'): array
     {
+        if (strlen($text) > self::MAX_INPUT_SIZE) {
+            throw new InvalidArgumentException('Input exceeds maximum size of ' . self::MAX_INPUT_SIZE . ' bytes');
+        }
+        $mode = in_array($mode, ['safe', 'aggressive', 'strict'], true) ? $mode : 'safe';
+
         $original = $text;
 
         // 1. Classify codepoints in the original text
@@ -728,7 +733,7 @@ class TextLinter
 
                 $kinds = self::detectVectorKinds($cp, $char);
 
-                if (!empty($kinds) || true) { // Keep all codepoints for now
+                if (!empty($kinds)) {
                     $classifications[] = [
                         'graphemeIndex' => $graphemeIndex,
                         'cp' => $cp,
@@ -754,17 +759,21 @@ class TextLinter
         $kinds = [];
 
         // BiDi controls
-        if (($cp >= 0x202A && $cp <= 0x202E) || ($cp >= 0x2066 && $cp <= 0x2069)) {
+        if (($cp >= 0x202A && $cp <= 0x202E) ||
+            ($cp >= 0x2066 && $cp <= 0x2069) ||
+            ($cp >= 0x200E && $cp <= 0x200F) ||
+            $cp === 0x061C) {
             $kinds[] = 'bidi_controls';
         }
 
         // Default ignorables (invisibles)
+        // Note: U+200E-200F and U+061C are BiDi marks, classified above
         $invisibleRanges = [
             [0x200B, 0x200D], [0x2028, 0x2029], [0x2060, 0x2064],
             [0x206A, 0x206F], [0xFEFF, 0xFEFF], [0xFFF9, 0xFFFB],
             [0x00AD, 0x00AD], [0x180E, 0x180E],
             [0xFE00, 0xFE0E], [0xE0100, 0xE01EF],
-            [0x200E, 0x200F], [0x061C, 0x061C],
+            [0x061C, 0x061C],
             [0xFE0F, 0xFE0F], [0x180B, 0x180D],
         ];
         foreach ($invisibleRanges as [$start, $end]) {
@@ -847,15 +856,15 @@ class TextLinter
         $bClusters = self::splitGraphemes($b);
 
         // Use sebastian/diff if available
-        if (class_exists('SebastianBergmann\Diff\Differ')) {
+        if (class_exists(\SebastianBergmann\Diff\Differ::class)) {
             try {
                 $differ = new \SebastianBergmann\Diff\Differ();
                 $diff = $differ->diffToArray($aClusters, $bClusters);
 
-                $ops = self::normalizeSebastiuanDiffOps($diff, $aClusters, $bClusters);
+                $ops = self::normalizeSebastianDiffOps($diff, $aClusters, $bClusters);
                 return [$aClusters, $bClusters, $ops];
             } catch (\Throwable $e) {
-                // Fall through to simple diff
+                self::logSecurityEvent('sebastian_diff_failure', 'sebastian/diff failed: ' . $e->getMessage() . '; falling back to LCS diff');
             }
         }
 
@@ -872,7 +881,7 @@ class TextLinter
      * @param array $bClusters Sanitized grapheme clusters
      * @return array<int,array<string,mixed>>
      */
-    private static function normalizeSebastiuanDiffOps(array $diff, array $aClusters, array $bClusters): array
+    private static function normalizeSebastianDiffOps(array $diff, array $aClusters, array $bClusters): array
     {
         $ops = [];
         $aIndex = 0;
@@ -1057,7 +1066,7 @@ class TextLinter
                     foreach ($c['kinds'] as $kind) {
                         $kindCounts[$kind] = ($kindCounts[$kind] ?? 0) + 1;
                     }
-                    $codePoints[] = sprintf('U+%04X', $c['cp']);
+                    $codePoints[] = sprintf('U+%05X', $c['cp']);
                 }
             }
 
