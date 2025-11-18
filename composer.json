@@ -7,6 +7,10 @@
         "sebastian/diff": "^4.0|^5.0"
     },
     "require-dev": {},
+    "suggest": {
+        "ext-intl": "Required for proper Unicode grapheme cluster segmentation and internationalization support",
+        "ext-mbstring": "Required for multibyte string operations"
+    },
     "autoload": {
         "classmap": ["api/"]
     },

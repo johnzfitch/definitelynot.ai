@@ -634,11 +634,14 @@ class TextLinter
      */
     public static function analyzeWithDiff(string $text, string $mode = 'safe'): array
     {
+        // Input validation
         if (strlen($text) > self::MAX_INPUT_SIZE) {
-            throw new InvalidArgumentException('Input exceeds maximum size of ' . self::MAX_INPUT_SIZE . ' bytes');
+            throw new \InvalidArgumentException('Input exceeds maximum size of ' . self::MAX_INPUT_SIZE . ' bytes');
         }
+        
+        // Validate mode parameter
         $mode = in_array($mode, ['safe', 'aggressive', 'strict'], true) ? $mode : 'safe';
-
+        
         $original = $text;
 
         // 1. Classify codepoints in the original text
@@ -682,14 +685,19 @@ class TextLinter
         ];
     }
 
-    /**
-     * Split a UTF-8 string into Unicode grapheme clusters.
-     *
-     * Grapheme indices are used throughout diffOps and VectorHits.
-     *
-     * @param string $text
-     * @return array<int,string> Grapheme clusters in order.
-     */
+     /**
+      * Split a UTF-8 string into Unicode grapheme clusters.
+      *
+      * Grapheme indices are used throughout diffOps and VectorHits.
+      *
+      * NOTE: Requires the intl extension for proper grapheme cluster segmentation.
+      * Without intl, falls back to codepoint splitting which has limitations:
+      * - Multi-codepoint graphemes (emoji with modifiers, combined characters) will be split incorrectly
+      * - Complex Unicode sequences may not be handled properly
+      *
+      * @param string $text
+      * @return array<int,string> Grapheme clusters in order.
+      */
     private static function splitGraphemes(string $text): array
     {
         if (function_exists('grapheme_str_split')) {
@@ -700,6 +708,7 @@ class TextLinter
         }
 
         // Fallback: split by codepoint using regex
+        // WARNING: This does NOT properly handle grapheme clusters without intl extension
         $result = preg_split('//u', $text, -1, PREG_SPLIT_NO_EMPTY);
         return is_array($result) ? $result : [];
     }
@@ -767,6 +776,7 @@ class TextLinter
         }
 
         // Default ignorables (invisibles)
+        // NOTE: U+200E-U+200F (LRM/RLM) are excluded as they're already classified as bidi_controls
         // Note: U+200E-200F and U+061C are BiDi marks, classified above
         $invisibleRanges = [
             [0x200B, 0x200D], [0x2028, 0x2029], [0x2060, 0x2064],
@@ -810,7 +820,10 @@ class TextLinter
             $kinds[] = 'non_ascii_digits';
         }
 
-        // Combining marks (potential orphans - this is a simple heuristic)
+        // Combining marks
+        // NOTE: This is a simplified heuristic that marks ALL combining marks as potential orphans.
+        // A proper implementation would check if the combining mark follows a base character.
+        // For now, this classifies all combining marks as 'orphan_combining_marks'.
         if (class_exists('IntlChar')) {
             $category = IntlChar::charType($cp);
             if ($category === IntlChar::CHAR_CATEGORY_NON_SPACING_MARK ||
@@ -864,6 +877,8 @@ class TextLinter
                 $ops = self::normalizeSebastianDiffOps($diff, $aClusters, $bClusters);
                 return [$aClusters, $bClusters, $ops];
             } catch (\Throwable $e) {
+                // Log the error and fall through to simple diff
+                error_log('[CosmicTextLinter] sebastian/diff failed: ' . $e->getMessage());
                 self::logSecurityEvent('sebastian_diff_failure', 'sebastian/diff failed: ' . $e->getMessage() . '; falling back to LCS diff');
             }
         }
