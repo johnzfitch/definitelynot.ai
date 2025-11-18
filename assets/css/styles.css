@@ -469,10 +469,22 @@ button,
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    background: rgba(8, 12, 38, 0.65);
-    border: 1px solid rgba(0, 217, 255, 0.35);
+    background: rgba(8, 12, 38, 0.85);
+    border: 2px solid rgba(0, 217, 255, 0.5);
     border-radius: 999px;
     padding: 0.35rem 0.6rem;
+    transition: border-color 0.25s ease, box-shadow 0.25s ease;
+    box-shadow:
+        0 2px 6px rgba(0, 0, 0, 0.3),
+        inset 0 0 12px rgba(0, 217, 255, 0.08);
+}
+
+.hex-input-group:focus-within {
+    border-color: var(--color-accent);
+    box-shadow:
+        0 2px 10px rgba(0, 0, 0, 0.4),
+        0 0 16px rgba(0, 217, 255, 0.3),
+        inset 0 0 16px rgba(0, 217, 255, 0.12);
 }
 
 .hex-input-group span {
@@ -592,9 +604,13 @@ button,
     }
 
     .text-area {
-        min-height: 180px;
-        padding: 1rem;
+        min-height: 200px;
+        padding: 1rem 1.15rem;
         margin: 1rem 0;
+        border-width: 3px;
+        border-radius: 12px;
+        font-size: 16px;
+        line-height: 1.65;
     }
 
     .mode-buttons {
@@ -789,30 +805,47 @@ button,
 .text-area {
     width: 100%;
     min-height: 260px;
-    background: rgba(8, 12, 38, 0.92);
-    border: 2px solid rgba(0, 217, 255, 0.25);
-    border-radius: 8px;
-    padding: 0.9rem 1rem;
+    background: rgba(8, 12, 38, 0.95);
+    border: 2.5px solid rgba(0, 217, 255, 0.5);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
     font-family: var(--font-mono);
     font-size: 16px;
     color: var(--color-light-cyan);
     resize: vertical;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
-    line-height: 1.5;
-    backdrop-filter: blur(2px);
+    transition: border-color 0.25s ease, box-shadow 0.25s ease, background 0.25s ease, transform 0.2s ease;
+    line-height: 1.6;
+    backdrop-filter: blur(3px);
+    box-shadow:
+        0 2px 8px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(0, 217, 255, 0.15),
+        inset 0 0 20px rgba(0, 217, 255, 0.05);
+}
+
+.text-area:hover {
+    border-color: rgba(0, 217, 255, 0.65);
+    box-shadow:
+        0 2px 12px rgba(0, 0, 0, 0.4),
+        0 0 12px rgba(0, 217, 255, 0.2),
+        inset 0 1px 0 rgba(0, 217, 255, 0.2),
+        inset 0 0 20px rgba(0, 217, 255, 0.08);
 }
 
 .text-area:focus {
     outline: none;
     border-color: var(--color-accent);
     box-shadow:
-        0 0 16px rgba(0, 217, 255, 0.35),
-        inset 0 0 16px rgba(0, 217, 255, 0.12);
+        0 4px 16px rgba(0, 0, 0, 0.5),
+        0 0 24px rgba(0, 217, 255, 0.45),
+        inset 0 1px 0 rgba(0, 217, 255, 0.3),
+        inset 0 0 24px rgba(0, 217, 255, 0.15);
     background: rgba(8, 12, 38, 0.98);
+    transform: translateY(-1px);
 }
 
 .text-area::placeholder {
-    color: rgba(140, 165, 255, 0.6);
+    color: rgba(140, 165, 255, 0.5);
+    font-style: italic;
 }
 
 .control-section {
