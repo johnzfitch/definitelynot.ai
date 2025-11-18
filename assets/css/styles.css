@@ -563,11 +563,13 @@ button,
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
         text-rendering: optimizeLegibility;
+        font-size: 16px;
+        line-height: 1.6;
     }
 
     .container {
-        padding: 1.25rem clamp(0.75rem, 6vw, 1.5rem);
-        gap: clamp(1.5rem, 5vw, 2.5rem);
+        padding: 1.5rem clamp(1rem, 5vw, 1.75rem);
+        gap: clamp(1.75rem, 6vw, 2.75rem);
     }
 
     .gradient-bg {
@@ -576,12 +578,12 @@ button,
 
     .nav-buttons {
         width: 100%;
-        padding-inline: clamp(0.5rem, 4vw, 1.25rem);
+        padding-inline: clamp(0.75rem, 5vw, 1.5rem);
     }
 
     .breadcrumbs ol {
-        gap: 0.75rem;
-        padding: 0.5rem 0.75rem;
+        gap: 0.85rem;
+        padding: 0.75rem 1rem;
     }
 
     .breadcrumbs span[aria-hidden="true"] {
@@ -589,92 +591,127 @@ button,
     }
 
     .section {
-        margin-bottom: 2rem;
+        margin-bottom: 2.25rem;
     }
 
     .panel,
     .control-section {
-        padding: clamp(1.35rem, 5vw, 1.75rem);
+        padding: clamp(1.5rem, 6vw, 2rem);
     }
 
     .panel-header {
         flex-direction: column;
         align-items: flex-start;
-        gap: 0.5rem;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
     }
 
     .text-area {
-        min-height: 200px;
-        padding: 1rem 1.15rem;
-        margin: 1rem 0;
+        min-height: 220px;
+        padding: 1.25rem 1.35rem;
+        margin: 1.25rem 0;
         border-width: 3px;
-        border-radius: 12px;
+        border-radius: 14px;
         font-size: 16px;
-        line-height: 1.65;
+        line-height: 1.7;
+        letter-spacing: 0.01em;
     }
 
     .mode-buttons {
         grid-template-columns: 1fr;
+        gap: 1rem;
     }
 
     button,
     .button,
     a[role="button"] {
-        min-height: 44px;
-        min-width: 44px;
+        min-height: 48px;
+        min-width: 48px;
     }
 
     .nav-buttons .breadcrumb-link,
     .nav-buttons .breadcrumb-current {
-        padding: 0.625rem 1.25rem;
-        min-height: 44px;
-        font-size: 0.875rem;
+        padding: 0.75rem 1.5rem;
+        min-height: 48px;
+        font-size: 0.9rem;
     }
 
     .mode-btn {
-        padding: 0.9rem 1.25rem;
+        padding: 1rem 1.5rem;
+        min-height: 56px;
+        gap: 0.45rem;
+    }
+
+    .mode-name {
+        font-size: 0.875rem;
+    }
+
+    .mode-desc {
+        font-size: 0.75rem;
+        line-height: 1.4;
     }
 
     .output-mode-btn {
-        padding: 0.75rem 1rem;
+        padding: 0.875rem 1.25rem;
+        min-height: 48px;
+        font-size: 0.85rem;
     }
 
     .btn-primary,
     .btn-secondary,
     .btn-tertiary,
-    .btn-random,
+    .btn-random {
+        padding: 1rem 1.75rem;
+        font-size: 1rem;
+        min-height: 52px;
+    }
+
     .color-trigger-btn,
-    .advisory-help-btn,
-    .modal-close,
-    #accent-apply {
-        padding: 0.75rem 1.5rem;
+    .advisory-help-btn {
+        padding: 0.875rem 1.75rem;
         font-size: 0.95rem;
+        min-height: 50px;
+    }
+
+    .modal-close {
+        width: 48px;
+        height: 48px;
+        font-size: 2.25rem;
+    }
+
+    #accent-apply {
+        padding: 0.875rem 1.5rem;
+        font-size: 0.95rem;
+        min-height: 48px;
     }
 
     input,
     textarea,
     select {
-        min-height: 44px;
+        min-height: 48px;
         font-size: 16px;
-        padding: 0.75rem;
+        padding: 0.875rem 1rem;
     }
 
     .hex-input-group {
         flex-wrap: wrap;
         justify-content: center;
-        padding: 0.5rem 0.75rem;
-        gap: 0.75rem;
+        padding: 0.75rem 1rem;
+        gap: 1rem;
+        min-height: 56px;
     }
 
     #accent-color-hex {
-        min-width: 140px;
-        font-size: 1.125rem;
-        padding: 0.75rem 0.25rem;
+        min-width: 160px;
+        font-size: 1.15rem;
+        padding: 0.875rem 0.5rem;
         text-align: center;
+        min-height: 48px;
     }
 
     #accent-color-picker {
-        height: 160px;
+        height: 180px;
+        border-width: 3px;
     }
 
     .color-trigger-btn,
@@ -688,37 +725,237 @@ button,
     }
 
     .output-mode-toggle {
-        flex-direction: column;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
     }
 
     .stats-section {
-        padding-inline: clamp(0.5rem, 5vw, 1rem);
+        padding-inline: clamp(0.75rem, 6vw, 1.25rem);
     }
 
     .stats-display {
         position: sticky;
         top: calc(var(--safe-area-top) + 0.75rem);
         z-index: 5;
+        padding: 1.5rem;
+        gap: 1.25rem;
+    }
+
+    .stat-item {
+        padding: 1rem 1.25rem;
+        gap: 0.5rem;
+    }
+
+    .stat-label {
+        font-size: 0.75rem;
+    }
+
+    .stat-value {
+        font-size: 1.15rem;
+    }
+
+    .advisory-panel {
+        padding: 1.35rem 1.5rem;
+    }
+
+    .advisory-item {
+        padding: 0.75rem 0.85rem;
+        gap: 0.6rem;
+    }
+
+    .advisory-text {
+        font-size: 0.875rem;
+        line-height: 1.5;
+    }
+
+    .modal-content {
+        max-height: 85vh;
+        margin: 1rem;
+    }
+
+    .modal-header {
+        padding: 1.5rem 1.75rem;
+    }
+
+    .modal-header h2 {
+        font-size: 1.25rem;
+    }
+
+    .modal-body {
+        padding: 1.5rem 1.75rem 2rem;
+    }
+
+    .help-item {
+        margin-bottom: 1.5rem;
+    }
+
+    .help-item h3 {
+        font-size: 1rem;
+        margin-bottom: 0.6rem;
+    }
+
+    .help-item p {
+        font-size: 0.875rem;
+        line-height: 1.65;
     }
 
     .footer {
         text-align: center;
-        padding-bottom: max(1.5rem, var(--safe-area-bottom));
+        padding: 2rem 0;
+        padding-bottom: max(2rem, var(--safe-area-bottom));
+    }
+
+    .footer-text {
+        font-size: 0.85rem;
+        line-height: 1.6;
+    }
+
+    .footer-text a {
+        padding: 0.35rem 0.75rem;
+        display: inline-block;
+        margin-top: 0.5rem;
+    }
+
+    .toast {
+        font-size: 0.875rem;
+        padding: 1rem 2rem;
+        max-width: 90%;
+    }
+
+    .diff-view {
+        font-size: 0.875rem;
+        padding: 1.25rem;
+        line-height: 1.7;
+    }
+
+    .diff-legend {
+        padding: 1rem;
+        gap: 1rem;
+    }
+
+    .diff-content {
+        font-size: 0.9rem;
+        padding: 1.25rem;
     }
 }
 
 @media (max-width: 480px) {
+    .container {
+        padding: 1.25rem 0.875rem;
+    }
+
     .section:not(.panel) {
-        padding: 1.25rem 0.75rem;
+        padding: 1.5rem 0.875rem;
+    }
+
+    .panel,
+    .control-section {
+        padding: 1.35rem 1.25rem;
     }
 
     .breadcrumbs ol {
-        padding-inline: 0.25rem;
-        gap: 0.5rem;
+        padding-inline: 0.5rem;
+        gap: 0.65rem;
+    }
+
+    .breadcrumb-link,
+    .breadcrumb-current {
+        font-size: 0.7rem;
+        padding: 0.65rem 1rem;
+    }
+
+    .title {
+        font-size: clamp(1.75rem, 8vw, 2.5rem);
+    }
+
+    .subtitle {
+        font-size: 0.8rem;
+    }
+
+    .copilot-signal {
+        padding: 0.65rem 0.875rem;
+        min-width: 200px;
+    }
+
+    .signal-label {
+        font-size: 0.65rem;
+    }
+
+    .signal-value {
+        font-size: 0.8rem;
+    }
+
+    .text-area {
+        min-height: 200px;
+        padding: 1.15rem 1.25rem;
+    }
+
+    .mode-btn {
+        padding: 0.95rem 1.35rem;
+        min-height: 52px;
+    }
+
+    .mode-name {
+        font-size: 0.85rem;
     }
 
     .mode-desc {
-        font-size: 0.75rem;
+        font-size: 0.725rem;
+    }
+
+    .btn-primary,
+    .btn-secondary,
+    .btn-tertiary,
+    .btn-random {
+        padding: 0.95rem 1.65rem;
+        font-size: 0.95rem;
+    }
+
+    .color-trigger-btn {
+        font-size: 0.875rem;
+        padding: 0.825rem 1.5rem;
+    }
+
+    .stats-display {
+        padding: 1.35rem 1.15rem;
+        gap: 1.15rem;
+    }
+
+    .stat-item {
+        padding: 0.875rem 1rem;
+    }
+
+    .modal-content {
+        margin: 0.75rem;
+    }
+
+    .modal-header {
+        padding: 1.25rem 1.5rem;
+    }
+
+    .modal-body {
+        padding: 1.25rem 1.5rem 1.75rem;
+    }
+
+    .help-item h3 {
+        font-size: 0.95rem;
+    }
+
+    .help-item p {
+        font-size: 0.85rem;
+    }
+
+    #accent-color-hex {
+        font-size: 1.1rem;
+        min-width: 150px;
+    }
+
+    .hex-input-group {
+        padding: 0.65rem 0.875rem;
+    }
+
+    #accent-color-picker {
+        height: 160px;
     }
 }
 
@@ -1385,15 +1622,17 @@ body.modal-open {
     display: none !important;
 }
 
+/* Additional mobile optimizations for older styles */
 @media (max-width: 768px) {
     .container {
-        padding: 1rem;
+        padding: 1.5rem 1rem;
     }
 
     .header {
         flex-direction: column;
         align-items: flex-start;
-        margin-bottom: 1.5rem;
+        margin-bottom: 1.75rem;
+        gap: 1.25rem;
     }
 
     .copilot-signal {
@@ -1401,7 +1640,7 @@ body.modal-open {
     }
 
     .text-area {
-        min-height: 200px;
+        min-height: 220px;
         font-size: 16px;
     }
 
@@ -1409,7 +1648,7 @@ body.modal-open {
     .btn-secondary,
     .btn-tertiary,
     .btn-random {
-        min-height: 44px;
+        min-height: 52px;
     }
 
     .mode-buttons {
@@ -1421,12 +1660,46 @@ body.modal-open {
     }
 
     .modal-content {
-        max-height: 90vh;
+        max-height: 85vh;
     }
 
     .starfield,
     .starfield-layer-2 {
-        opacity: 0.2;
+        opacity: 0.15;
+    }
+}
+
+/* Enhanced touch interactions for mobile */
+@media (max-width: 768px) and (hover: none) {
+    /* Increase tap target spacing */
+    .mode-buttons {
+        gap: 1.15rem;
+    }
+
+    /* Better touch feedback */
+    button:active,
+    .button:active,
+    a[role="button"]:active {
+        transform: scale(0.98);
+        transition: transform 0.1s ease;
+    }
+
+    /* Prevent accidental double-tap zoom on buttons */
+    button,
+    .button,
+    a[role="button"] {
+        touch-action: manipulation;
+    }
+
+    /* Improve textarea usability */
+    .text-area {
+        touch-action: pan-y;
+    }
+
+    /* Better scrolling for modal content */
+    .modal-content {
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
     }
 }
 
