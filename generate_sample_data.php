@@ -130,8 +130,8 @@ $samples = [
     ],
 
     'format_characters' => [
-        'description' => 'Various format control characters',
-        'text' => "Test\u{00AD}soft\u{180E}hyphen\u{2060}word\u{2061}joiner",
+        'description' => 'Various format control characters (soft hyphen, Mongolian separator, word joiner, function application)',
+        'text' => "Test\u{00AD}soft\u{180E}mongolian\u{2060}word\u{2061}function",
         'expected_hits' => 1,
         'categories' => ['invisible', 'format'],
     ],
