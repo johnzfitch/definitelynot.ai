@@ -863,9 +863,15 @@ class TextLinter
         // Use sebastian/diff if available
         if (class_exists(\SebastianBergmann\Diff\Differ::class)) {
             try {
-                // Create output builder for Differ (required in v5+)
-                $outputBuilder = new \SebastianBergmann\Diff\Output\DiffOnlyOutputBuilder();
-                $differ = new \SebastianBergmann\Diff\Differ($outputBuilder);
+                // Version-specific handling for sebastian/diff v4 and v5+
+                if (class_exists(\SebastianBergmann\Diff\Output\DiffOnlyOutputBuilder::class)) {
+                    // v5+: pass OutputBuilder to Differ
+                    $outputBuilder = new \SebastianBergmann\Diff\Output\DiffOnlyOutputBuilder();
+                    $differ = new \SebastianBergmann\Diff\Differ($outputBuilder);
+                } else {
+                    // v4: Differ takes no constructor arguments
+                    $differ = new \SebastianBergmann\Diff\Differ();
+                }
                 $diff = $differ->diffToArray($aClusters, $bClusters);
 
                 $ops = self::normalizeSebastianDiffOps($diff, $aClusters, $bClusters);
