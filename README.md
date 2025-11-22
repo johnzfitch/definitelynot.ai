@@ -1,4 +1,4 @@
-# Cosmic Text Linter v2.2.1
+# Cosmic Text Linter v2.3.1
 
 A Unicode-security-aware text sanitizer with a retro 90s space aesthetic. Removes invisible characters, defends against Unicode-based attacks (Trojan Source, homoglyph spoofing), and preserves legitimate multilingual text.
 
@@ -58,10 +58,22 @@ If `mbstring` or `intl` are missing, open **Select PHP Version** in cPanel, enab
    - PHP files and assets: `644`
    - `.htaccess`: `644`
 
-### 3. Adjust Rewrite Base (if needed)
+### 3. Install Dependencies via Composer
+The VectorHit diff layer requires the `sebastian/diff` library. Install it using Composer:
+
+```bash
+cd /path/to/cosmic-text-linter/
+composer install --no-dev --optimize-autoloader
+```
+
+If you don't have Composer installed:
+- **On shared hosting (cPanel)**: Use the Terminal or SSH access to install Composer. See [getcomposer.org](https://getcomposer.org/download/) for instructions.
+- **Without Composer access**: The library will fall back to a slower LCS-based diff implementation. All functionality remains intact, but performance may be reduced for large text inputs.
+
+### 4. Adjust Rewrite Base (if needed)
 The included `.htaccess` assumes deployment at `/cosmic-text-linter/`. If you use a different directory (or deploy at the web root), update `RewriteBase` accordingly.
 
-### 4. Test Extensions and PHP Errors
+### 5. Test Extensions and PHP Errors
 - Visit `https://yourdomain.example/cosmic-text-linter/`
 - Check `error_log` in File Manager for PHP warnings or fatal errors
 
