@@ -292,7 +292,12 @@ body {
 
 .breadcrumb-link {
     color: var(--color-light-cyan);
-    padding: 0.35rem 0.6rem;
+    padding: 12px 16px;
+    min-height: 44px;
+    min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     border: 1px solid rgba(0, 217, 255, 0.5);
     border-radius: 999px;
     background: rgba(8, 12, 38, 0.6);
@@ -309,7 +314,12 @@ body {
 }
 
 .breadcrumb-current {
-    padding: 0.35rem 0.6rem;
+    padding: 12px 16px;
+    min-height: 44px;
+    min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     border-radius: 999px;
     border: 1px solid rgba(255, 255, 255, 0.5);
     background: rgba(255, 100, 249, 0.25);
@@ -327,7 +337,8 @@ body {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.6rem 1.2rem;
+    padding: 12px 20px;
+    min-height: 44px;
     background: rgba(27, 31, 66, 0.8);
     border: 1px solid rgba(0, 217, 255, 0.4);
     border-radius: 6px;
@@ -780,10 +791,11 @@ button,
 }
 
 .char-count {
-    font-size: 0.75rem;
+    font-size: 13px;
+    font-weight: 500;
     color: rgba(224, 247, 255, 0.7);
     font-family: var(--font-mono);
-    letter-spacing: 0.05em;
+    letter-spacing: 0.02em;
 }
 
 .text-area {
@@ -797,6 +809,8 @@ button,
     font-size: 16px;
     color: var(--color-light-cyan);
     resize: vertical;
+    overflow: auto; /* Required for resize to work */
+    max-height: 600px; /* Prevent excessive expansion */
     transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
     line-height: 1.5;
     backdrop-filter: blur(2px);
@@ -860,7 +874,7 @@ button,
 .mode-buttons {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-    gap: 0.75rem;
+    gap: 8px;
 }
 
 .mode-btn {
@@ -868,7 +882,9 @@ button,
     background: linear-gradient(135deg, rgba(0, 217, 255, 0.25), rgba(255, 100, 249, 0.18));
     border: 2px solid rgba(0, 217, 255, 0.45);
     border-radius: 8px;
-    padding: 0.75rem 0.85rem;
+    padding: 12px 18px;
+    min-height: 44px;
+    min-width: 100px;
     cursor: pointer;
     transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
     display: flex;
@@ -902,8 +918,10 @@ button,
 }
 
 .mode-desc {
-    font-size: 0.7rem;
+    font-size: 12px;
     color: rgba(224, 247, 255, 0.75);
+    opacity: 0.85;
+    line-height: 1.4;
 }
 
 .control-note {
@@ -1077,7 +1095,7 @@ button,
 }
 
 .stat-label {
-    font-size: 0.7rem;
+    font-size: 12px;
     color: rgba(224, 247, 255, 0.7);
     letter-spacing: 0.12em;
     font-weight: 700;
@@ -1085,7 +1103,7 @@ button,
 
 .stat-value {
     font-family: var(--font-display);
-    font-size: 1.05rem;
+    font-size: 14px;
     color: var(--color-accent);
     text-shadow: 0 0 16px rgba(0, 217, 255, 0.5);
     font-weight: 800;
@@ -1170,11 +1188,12 @@ button,
 
 .advisory-help-btn {
     font-family: var(--font-mono);
-    font-size: 0.8rem;
+    font-size: 13px;
     background: rgba(255, 149, 0, 0.22);
     border: 1px solid rgba(255, 220, 142, 0.7);
     border-radius: 999px;
-    padding: 0.55rem 1rem;
+    padding: 12px 24px;
+    min-height: 44px;
     color: rgba(255, 244, 224, 0.92);
     cursor: pointer;
     transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -1242,16 +1261,16 @@ body.modal-open {
 }
 
 .modal-close {
-    font-size: 2rem;
+    font-size: 24px;
     background: none;
     border: none;
     color: rgba(255, 255, 255, 0.6);
     cursor: pointer;
     line-height: 1;
     transition: all 0.3s ease;
-    padding: 0;
-    width: 32px;
-    height: 32px;
+    padding: 12px;
+    min-width: 44px;
+    min-height: 44px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1459,12 +1478,14 @@ body.modal-open {
 
 .output-mode-btn {
     flex: 1;
-    padding: 0.5rem;
+    padding: 12px 20px;
+    min-height: 44px;
+    min-width: 80px;
     background: rgba(27, 31, 66, 0.7);
     border: 1px solid rgba(0, 217, 255, 0.3);
     color: var(--color-gray-blue);
     font-family: var(--font-display);
-    font-size: 0.75rem;
+    font-size: 14px;
     font-weight: 700;
     cursor: pointer;
     transition: all 0.2s ease;
@@ -1490,21 +1511,65 @@ body.modal-open {
 
 .diff-view {
     width: 100%;
-    min-height: 200px;
-    padding: 1rem;
-    background: rgba(4, 7, 29, 0.5);
-    border: 1px solid rgba(140, 165, 255, 0.2);
-    border-radius: 6px;
+    min-height: 260px;
+    padding: 0.9rem 1rem;
+    background: rgba(8, 12, 38, 0.92);
+    border: 2px solid rgba(0, 217, 255, 0.25);
+    border-radius: 8px;
     font-family: var(--font-mono);
-    font-size: 0.9rem;
-    line-height: 1.6;
+    font-size: 16px;
+    line-height: 1.5;
     color: var(--color-light-cyan);
     overflow-y: auto;
-    max-height: 400px;
+    resize: vertical; /* Match .text-area resize behavior */
+    max-height: 600px; /* Match .text-area max-height */
+    backdrop-filter: blur(2px);
 }
 
 .diff-view.hidden {
     display: none;
+}
+
+/* OverType Integration - Prevent Double Scrollbar & Match Styling */
+/* Force OverType to inherit our container's size and remove its own scrollbar */
+#output-text[data-overtype] {
+    resize: vertical;
+    overflow: auto;
+    max-height: 600px;
+    background: rgba(8, 12, 38, 0.92) !important;
+    border: 2px solid rgba(0, 217, 255, 0.25) !important;
+}
+
+/* OverType wrapper should not add additional scrolling or styling */
+.ot-wrapper {
+    background: rgba(8, 12, 38, 0.92) !important;
+    border: 2px solid rgba(0, 217, 255, 0.25) !important;
+    border-radius: 8px !important;
+    overflow: visible !important; /* Let parent handle scrolling */
+    backdrop-filter: blur(2px) !important;
+}
+
+.ot-wrapper .ot-editor {
+    background: rgba(8, 12, 38, 0.92) !important;
+    color: var(--color-light-cyan) !important;
+    overflow: visible !important; /* Let parent handle scrolling */
+    max-height: none !important; /* Remove OverType's height constraint */
+}
+
+/* Override OverType's "cave" theme background colors */
+.ot-wrapper .ot-preview,
+.ot-wrapper .ot-markdown-preview {
+    background: transparent !important;
+}
+
+/* Disable resize on mobile/tablet devices */
+@media (max-width: 768px) {
+    .text-area,
+    .diff-view,
+    #output-text[data-overtype] {
+        resize: none !important;
+        max-height: none; /* Allow natural height on mobile */
+    }
 }
 
 /* Diff Mode Toggle */
@@ -1594,12 +1659,12 @@ body.modal-open {
 
 /* Enhanced Diff Content */
 .diff-content {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.95rem;
-    line-height: 1.6;
+    font-family: var(--font-mono);
+    font-size: 16px;
+    line-height: 1.5;
     white-space: pre-wrap;
     word-break: break-word;
-    padding: 1rem;
+    padding: 0.9rem 1rem;
     background: rgba(0, 0, 0, 0.3);
     border-radius: 4px;
     max-height: 500px;
@@ -1640,6 +1705,126 @@ body.modal-open {
     padding: 3rem 1rem;
     color: var(--color-gray-blue);
     font-style: italic;
+}
+
+/* ============================================
+   Advisory Actions & Report Modal
+   ============================================ */
+
+.advisory-actions {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-top: 1rem;
+}
+
+/* Report Modal */
+.report-content {
+    max-height: 60vh;
+    overflow-y: auto;
+    padding-right: 0.5rem;
+}
+
+.report-section {
+    margin-bottom: 2rem;
+}
+
+.report-section h3 {
+    font-family: var(--font-display);
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: var(--color-accent);
+    margin-bottom: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.report-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1.5rem;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.report-table th,
+.report-table td {
+    padding: 0.75rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid rgba(0, 217, 255, 0.15);
+}
+
+.report-table th {
+    font-family: var(--font-display);
+    font-weight: 700;
+    color: var(--color-cyan);
+    text-transform: uppercase;
+    font-size: 0.875rem;
+    letter-spacing: 0.05em;
+    width: 60%;
+}
+
+.report-table td {
+    font-family: var(--font-mono);
+    color: var(--color-light-cyan);
+    font-size: 1rem;
+    font-weight: 500;
+}
+
+.report-table tbody tr:last-child th,
+.report-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.report-advisories {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.report-advisories li {
+    padding: 0.625rem 0;
+    border-bottom: 1px solid rgba(0, 217, 255, 0.1);
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+}
+
+.report-advisories li:last-child {
+    border-bottom: none;
+}
+
+.report-advisory-active {
+    color: var(--color-light-cyan);
+}
+
+.report-advisory-inactive {
+    color: var(--color-gray-blue);
+    opacity: 0.6;
+}
+
+.report-bullet {
+    color: var(--color-accent);
+    font-weight: bold;
+    flex-shrink: 0;
+    margin-top: 0.125rem;
+}
+
+.report-note {
+    color: var(--color-gray-blue);
+    font-style: italic;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    text-align: center;
+}
+
+.report-empty {
+    color: var(--color-gray-blue);
+    font-style: italic;
+    text-align: center;
+    padding: 2rem 1rem;
 }
 
 .scrollable {
