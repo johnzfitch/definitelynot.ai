@@ -2,6 +2,11 @@
 
 declare(strict_types=1);
 
+// Load Composer autoloader if available (for sebastian/diff)
+if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
+    require_once __DIR__ . '/../vendor/autoload.php';
+}
+
 /**
  * Cosmic Text Linter core engine v2.3.1
  * Implements the Unicode-aware sanitization pipeline with security metrics.
@@ -858,7 +863,15 @@ class TextLinter
         // Use sebastian/diff if available
         if (class_exists(\SebastianBergmann\Diff\Differ::class)) {
             try {
-                $differ = new \SebastianBergmann\Diff\Differ();
+                // Version-specific handling for sebastian/diff v4 and v5+
+                if (class_exists(\SebastianBergmann\Diff\Output\DiffOnlyOutputBuilder::class)) {
+                    // v5+: pass OutputBuilder to Differ
+                    $outputBuilder = new \SebastianBergmann\Diff\Output\DiffOnlyOutputBuilder();
+                    $differ = new \SebastianBergmann\Diff\Differ($outputBuilder);
+                } else {
+                    // v4: Differ takes no constructor arguments
+                    $differ = new \SebastianBergmann\Diff\Differ();
+                }
                 $diff = $differ->diffToArray($aClusters, $bClusters);
 
                 $ops = self::normalizeSebastianDiffOps($diff, $aClusters, $bClusters);
@@ -901,7 +914,7 @@ class TextLinter
                 ];
                 $aIndex++;
                 $bIndex++;
-            } elseif ($type === 1) { // DELETE
+            } elseif ($type === 2) { // DELETE (removed from original)
                 $ops[] = [
                     'type' => 'delete',
                     'aStart' => $aIndex,
@@ -910,7 +923,7 @@ class TextLinter
                     'bLen' => 0,
                 ];
                 $aIndex++;
-            } elseif ($type === 2) { // INSERT
+            } elseif ($type === 1) { // INSERT (added to sanitized)
                 $ops[] = [
                     'type' => 'insert',
                     'aStart' => $aIndex,
